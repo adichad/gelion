@@ -1,17 +1,20 @@
-*.class
+third-party
+.*
+*.iml
+bin
+build
+/build
+data
+logs
+tmp
+temp
+src/main/resources/application.*
+src/main/resources/environment.*
+env/*/*/build
+env/*/*/bin
+dep/build
+dep/bin
 *.log
-
-# sbt specific
-.cache
-.history
-.lib/
-dist/*
-target/
-lib_managed/
-src_managed/
-project/boot/
-project/plugins/project/
-
-# Scala-IDE specific
-.scala_dependencies
-.worksheet
+site/node_modules
+site/app/bower_components
+*.pyc
