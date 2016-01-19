@@ -154,6 +154,7 @@ queryMap = {
                  p.pgprice_to,
                  pg.customer_id as seller_id,
                  pg.seller_id as crm_seller_id,
+                 pg.subscribed_product_id,
                  ctc.companyname as seller_name
             FROM oc_product p
       INNER JOIN oc_product_grouped pg

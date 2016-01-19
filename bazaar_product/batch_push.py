@@ -13,7 +13,7 @@ end_id = sys.maxint
 threads = 4
 batch_size = 10
 
-opts, args = getopt.getopt(sys.argv[1:], 'e:', ['env='])
+opts, args = getopt.getopt(sys.argv[1:], 'e:c:f:l:t:b:', ['env=', 'conf=', 'first=', 'last=', 'threads=', 'batch-size='])
 
 for k, v in opts:
   if k in ("-e", "--env"): 

@@ -161,9 +161,9 @@ class ProductsShaper(object):
 
   def shape(self, ids = []):
     format_strings = ','.join(['%s'] * len(ids))
-    #print(self.queryMap["base_product"] % (format_strings, format_strings)% tuple(ids))
+    #print(self.queryMap["base_product"] % (format_strings)% tuple(ids))
     products = self.db.get(self.queryMap["base_product"] % (format_strings), tuple(ids))
-    
+    #print("products: "+json.dumps(products, cls=Encoder, indent=2)) 
     for product in products:
       id = product['product_id']
       product['categories'] = self.db.get(self.queryMap["product_categories"], (id, )) #TOASK: Category assigment is non-mandatory? 1165
@@ -175,7 +175,7 @@ class ProductsShaper(object):
       subscribed_ids = map(lambda rec: rec['grouped_id'], self.db.get(self.queryMap["subscribed_ids"], (id, )))
       product['subscriptions'] = self.subscribedProducts(subscribed_ids)
 
-      product['images'] = product['images'].split(',')
+      product['images'] = [] if product['images'] is None else product['images'].split(',') 
       product['min_price'] = min(map(lambda sub: sub['min_price'], product['subscriptions'])) if(len(product['subscriptions'])>0) else None
       product.pop('subscribed_product_ids', None)
       
@@ -225,21 +225,37 @@ class ProductDeltaUpdater(object):
 
 def hook_factory(*factory_args, **factory_kwargs):
   def updateStatus(result, *args, **kwargs):
+    print("target response: "+result.text)
+    successes = []
+    failures = []
     try:
       res = json.loads(result.text)
-      successes = filter(lambda rec: rec['product_id'] in map(lambda id: int(id), res['response']['successful']), factory_kwargs['delta_batch'])
-      failures = map(lambda rec: {"product_id": int(rec['product_id']), "error": rec['error']}, res['response']['failed'])
-    except:
+      if isinstance(res, dict):
+        successes = filter(lambda rec: rec['product_id'] in map(lambda id: int(id), res['response']['successful']), factory_kwargs['delta_batch'])
+        success_ids = map(lambda rec: rec['product_id'], successes)
+        failed_list = filter(lambda rec: rec['product_id'] not in success_ids, factory_kwargs['delta_batch'])
+        tgt_errors = dict((int(rec['product_id']), rec['error']) for rec in res['response']['failed'])
+        #print(str(tgt_errors))
+        failures = map(lambda rec: {"product_id": int(rec['product_id']), "source_dt": rec['source_dt'], "error": tgt_errors[int(rec['product_id'])] if int(rec['product_id']) in tgt_errors else "no such grouped product_id in source"}, failed_list)
+      else:
+        failures = map(lambda rec: {"product_id": rec['product_id'], "source_dt": rec['source_dt'], "error": result.text}, factory_kwargs['delta_batch'])
+    except Exception, e:
+      print("Exception: "+str(e))
       successes = []
-      failures = map(lambda rec: {"product_id": rec['product_id'], "error": result.text}, factory_kwargs['delta_batch'])
-    
+      failures = map(lambda rec: {"product_id": rec['product_id'], "source_dt": rec['source_dt'], "error": result.text}, factory_kwargs['delta_batch'])
+ 
     db = factory_kwargs['db']
-    if len(successes) > 0:
-      format_strings = ','.join(['%s'] * len(successes))
-      db.put(queryMap["product_success_merge"] % format_strings % tuple(map(lambda rec: "(%s, '%s', '%s')"%(str(rec['product_id']), str(rec['source_dt']), str(rec['source_dt'])), successes)))
-    if len(failures) > 0:
-      format_strings = ','.join(['%s'] * len(failures))
-      db.put(queryMap["product_failure_merge"] % format_strings % tuple(map(lambda rec: "(%s, '%s', '%s')"%(str(rec['product_id']), str(rec['source_dt']), str(rec['error'])), failures)))
+    try:
+      if len(successes) > 0:
+        format_strings = ','.join(['%s'] * len(successes))
+        db.put(queryMap["product_success_merge"] % format_strings % tuple(map(lambda rec: "(%s, '%s', '%s')"%(str(rec['product_id']), str(rec['source_dt']), str(rec['source_dt'])), successes)))
+        #print("successes" + str(successes))
+      if len(failures) > 0:
+        format_strings = ','.join(['%s'] * len(failures))
+        db.put(queryMap["product_failure_merge"] % format_strings % tuple(map(lambda rec: "(%s, '%s', '%s')"%(str(rec['product_id']), str(rec['source_dt']), str(rec['error'])), failures)))
+        #print("failures" + str(failures))
+    except Exception, e:
+      print(str(e))
     result.close()
     return None
   return updateStatus
@@ -269,20 +285,24 @@ class MandelbrotPipe(object):
   def post(self, data, deltaBatch):
     try:
       req = grequests.post(self.url, data = json.dumps(data, cls=Encoder, indent=2), hooks = {'response': [hook_factory(delta_batch=deltaBatch, db=self.db_target)]})
-      job = grequests.send(req, self.requestPool)
+      return grequests.send(req, self.requestPool)
     except Exception, e:
       failures = map(lambda rec: {"product_id": rec['product_id'], "source_dt": rec['source_dt'], "error": str(e)}, deltaBatch)
       format_strings = ','.join(['%s'] * len(failures))
       self.db_target.put(queryMap["product_failure_merge"] % format_strings % tuple(map(lambda rec: "(%s, '%s', '%s')"%(str(rec['product_id']), str(rec['source_dt']), str(rec['error'])), failures)))
+      return None
 
   def streamDelta(self, batchSize):
     cur = self.db_target.getCursor(self.queries["product_id_fetch"], (self.idStart, self.idEnd, ))
     deltaBatch = cur.fetchmany(batchSize)
+    jobs = []
     while len(deltaBatch)>0:
       ids = map(lambda rec: rec['product_id'], deltaBatch)
       print(json.dumps(ids, cls=Encoder))
-      self.post(self.shaper.shape(ids), deltaBatch)
+      job = self.post(self.shaper.shape(ids), deltaBatch)
+      if job is not None:
+        jobs.append(job)
       deltaBatch = cur.fetchmany(batchSize)
-
     cur.close()
+    map(lambda job: job.join(), jobs)
 
