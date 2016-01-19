@@ -38,7 +38,7 @@ class BaseDB(object):
       user = self.config.user,
       passwd = self.config.passwd,
       db = self.config.name,
-      charset = 'utf8mb4',
+      charset = 'utf8',
       init_command = "SET SESSION wait_timeout=3000;SET NAMES UTF8;SET time_zone='+0:00';SET SESSION group_concat_max_len = 1000000; SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;",
       cursorclass = MySQLdb.cursors.DictCursor)
 
