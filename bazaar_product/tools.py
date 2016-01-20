@@ -9,7 +9,9 @@ from itertools import groupby
 import grequests
 import logging
 from queries import queryMap
+import logging
 
+logger = logging.getLogger('etl_product')
 
 class Encoder(json.JSONEncoder):
   def default(self, o):
@@ -161,9 +163,9 @@ class ProductsShaper(object):
 
   def shape(self, ids = []):
     format_strings = ','.join(['%s'] * len(ids))
-    #print(self.queryMap["base_product"] % (format_strings)% tuple(ids))
+    logger.debug(self.queryMap["base_product"] % (format_strings)% tuple(ids))
     products = self.db.get(self.queryMap["base_product"] % (format_strings), tuple(ids))
-    #print("products: "+json.dumps(products, cls=Encoder, indent=2)) 
+    logger.debug("products: "+json.dumps(products, cls=Encoder, indent=2)) 
     for product in products:
       id = product['product_id']
       product['categories'] = self.db.get(self.queryMap["product_categories"], (id, )) #TOASK: Category assigment is non-mandatory? 1165
@@ -196,8 +198,8 @@ class ProductDeltaUpdater(object):
   def streamDelta(self, batchSize):
     idPrev = self.idPrev()
     idCurr = self.idCurr()
-    print(str(idPrev))
-    print(str(idCurr))
+    logger.info("last processed log_id: "+str(idPrev))
+    logger.info("current max    log_id: "+str(idCurr))
     count = 0
     cur = self.db_source.getCursor(self.queries["product_delta_fetch"], (idPrev, idCurr, ))
     deltaBatch = cur.fetchmany(batchSize)
@@ -225,7 +227,7 @@ class ProductDeltaUpdater(object):
 
 def hook_factory(*factory_args, **factory_kwargs):
   def updateStatus(result, *args, **kwargs):
-    print("target response: "+result.text)
+    logger.info("target response: "+result.text)
     successes = []
     failures = []
     try:
@@ -235,12 +237,11 @@ def hook_factory(*factory_args, **factory_kwargs):
         success_ids = map(lambda rec: rec['product_id'], successes)
         failed_list = filter(lambda rec: rec['product_id'] not in success_ids, factory_kwargs['delta_batch'])
         tgt_errors = dict((int(rec['product_id']), rec['error']) for rec in res['response']['failed'])
-        #print(str(tgt_errors))
         failures = map(lambda rec: {"product_id": int(rec['product_id']), "source_dt": rec['source_dt'], "error": tgt_errors[int(rec['product_id'])] if int(rec['product_id']) in tgt_errors else "no such grouped product_id in source"}, failed_list)
       else:
         failures = map(lambda rec: {"product_id": rec['product_id'], "source_dt": rec['source_dt'], "error": result.text}, factory_kwargs['delta_batch'])
     except Exception, e:
-      print("Exception: "+str(e))
+      logger.error("Exception: "+str(e))
       successes = []
       failures = map(lambda rec: {"product_id": rec['product_id'], "source_dt": rec['source_dt'], "error": result.text}, factory_kwargs['delta_batch'])
  
@@ -249,13 +250,11 @@ def hook_factory(*factory_args, **factory_kwargs):
       if len(successes) > 0:
         format_strings = ','.join(['%s'] * len(successes))
         db.put(queryMap["product_success_merge"] % format_strings % tuple(map(lambda rec: "(%s, '%s', '%s')"%(str(rec['product_id']), str(rec['source_dt']), str(rec['source_dt'])), successes)))
-        #print("successes" + str(successes))
       if len(failures) > 0:
         format_strings = ','.join(['%s'] * len(failures))
         db.put(queryMap["product_failure_merge"] % format_strings % tuple(map(lambda rec: "(%s, '%s', '%s')"%(str(rec['product_id']), str(rec['source_dt']), str(rec['error'])), failures)))
-        #print("failures" + str(failures))
     except Exception, e:
-      print(str(e))
+      logger.error(str(e))
     result.close()
     return None
   return updateStatus
@@ -298,7 +297,7 @@ class MandelbrotPipe(object):
     jobs = []
     while len(deltaBatch)>0:
       ids = map(lambda rec: rec['product_id'], deltaBatch)
-      print(json.dumps(ids, cls=Encoder))
+      logger.info("shaping product_ids: "+json.dumps(ids, cls=Encoder))
       job = self.post(self.shaper.shape(ids), deltaBatch)
       if job is not None:
         jobs.append(job)
