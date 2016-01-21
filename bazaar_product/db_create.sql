@@ -10,10 +10,12 @@ CREATE TABLE `product_status` (
   `source_dt` datetime NOT NULL,
   `target_dt` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
   `timestamp` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `bucket` int(11) NOT NULL DEFAULT 9999,
   `last_error` varchar(1024) NOT NULL DEFAULT '',
   PRIMARY KEY (`product_id`),
   KEY `source_dt` (`source_dt`),
-  KEY `target_dt` (`target_dt`)
+  KEY `target_dt` (`target_dt`),
+  KEY `bucket` (`bucket`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE `product_bookmark` (
@@ -21,8 +23,9 @@ CREATE TABLE `product_bookmark` (
   `log_id` int(11) NOT NULL,
   `recs` int(11) NOT NULL,
   `run_stamp` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `time_ms` int(11) NOT NULL,
   PRIMARY KEY (`id`),
   KEY `log_id` (`log_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 

@@ -9,7 +9,9 @@ from itertools import groupby
 import grequests
 import logging
 from queries import queryMap
+from random import randint
 import logging
+import time
 
 logger = logging.getLogger('etl_product')
 
@@ -189,13 +191,16 @@ class ProductDeltaUpdater(object):
   db_source = None
   db_target = None
   queries = None
+  procs = None
 
-  def __init__(self, db_source, db_target, queries):
+  def __init__(self, db_source, db_target, queries, procs):
     self.db_source = db_source
     self.db_target = db_target
     self.queries = queries
+    self.procs = procs
 
   def streamDelta(self, batchSize):
+    start = int(round(time.time() * 1000))
     idPrev = self.idPrev()
     idCurr = self.idCurr()
     logger.info("last processed log_id: "+str(idPrev))
@@ -207,13 +212,14 @@ class ProductDeltaUpdater(object):
       format_strings = ','.join(['%s'] * len(deltaBatch))
       self.db_target.put(
         self.queries["product_delta_merge"] % format_strings % 
-        tuple(map(lambda rec: "(%s, '%s')"%(str(rec['product_id']), str(rec['last_updated_dt'])), deltaBatch))
+        tuple(map(lambda rec: "(%s, '%s', %s)"%(str(rec['product_id']), str(rec['last_updated_dt']), str(randint(0, self.procs-1))), deltaBatch))
       )
-      count += len(deltaBatch)
+      count+=len(deltaBatch)
       deltaBatch = cur.fetchmany(batchSize)
 
     cur.close()
-    self.db_target.put(self.queries["product_bookmark_insert"], (idCurr, count, ))
+    end = int(round(time.time() * 1000))
+    self.db_target.put(self.queries["product_bookmark_insert"], (idCurr, count, (end-start)))
 
   def idPrev(self): 
     result = self.db_target.get(self.queries["last_target_log_id"])
@@ -264,18 +270,18 @@ class MandelbrotPipe(object):
   db_source = None
   db_target = None
   queries = None
-  idStart = None
-  idEnd = None
+  proc_id = None
+  procs = None
   shaper = None
   url = None
   requestPool = None
 
-  def __init__(self, db_source, db_target, queries, idStart, idEnd, shaper, url, requestPool):
+  def __init__(self, db_source, db_target, queries, proc_id, procs, shaper, url, requestPool):
     self.db_source = db_source
     self.db_target = db_target
     self.queries = queries
-    self.idStart = idStart
-    self.idEnd = idEnd
+    self.proc_id = proc_id
+    self.procs = procs
     self.shaper = shaper
     self.url = url
     self.requestPool = requestPool
@@ -292,16 +298,20 @@ class MandelbrotPipe(object):
       return None
 
   def streamDelta(self, batchSize):
-    cur = self.db_target.getCursor(self.queries["product_id_fetch"], (self.idStart, self.idEnd, ))
+    start = int(round(time.time() * 1000))
+    cur = self.db_target.getCursor(self.queries["product_id_fetch"], (self.proc_id, self.procs, ))
     deltaBatch = cur.fetchmany(batchSize)
     jobs = []
+    count = 0
     while len(deltaBatch)>0:
       ids = map(lambda rec: rec['product_id'], deltaBatch)
       logger.info("shaping product_ids: "+json.dumps(ids, cls=Encoder))
       job = self.post(self.shaper.shape(ids), deltaBatch)
       if job is not None:
         jobs.append(job)
+      count+=len(deltaBatch)
       deltaBatch = cur.fetchmany(batchSize)
     cur.close()
     map(lambda job: job.join(), jobs)
-
+    end = int(round(time.time() * 1000))
+    logger.info("batch [%s mod %s] record count: %s; processing time (ms): %s"%(str(self.proc_id), str(self.procs), str(count), str(end - start)))

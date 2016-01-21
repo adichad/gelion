@@ -201,7 +201,7 @@ queryMap = {
   """,
 
   "product_delta_merge": """
-     INSERT INTO product_status (product_id, source_dt)
+     INSERT INTO product_status (product_id, source_dt, bucket)
           VALUES %s
 ON DUPLICATE KEY UPDATE source_dt = VALUES(source_dt)
   """,
@@ -221,15 +221,14 @@ ON DUPLICATE KEY UPDATE source_dt = VALUES(source_dt)
   """,
 
   "product_bookmark_insert": """
-     INSERT INTO product_bookmark(log_id, recs) 
-          VALUES (%s, %s)
+     INSERT INTO product_bookmark(log_id, recs, time_ms) 
+          VALUES (%s, %s, %s)
   """,
 
   "product_id_fetch": """
           SELECT product_id, source_dt
             FROM product_status
-           WHERE product_id > %s
-             AND product_id <= %s
+           WHERE %s = MOD(bucket, %s) 
              AND source_dt > target_dt
   """,
 

@@ -29,7 +29,7 @@ try:
   db_source = BaseDB(cfg['default']['db']['source'])
   db_target = BaseDB(cfg['default']['db']['management'])
 
-  deltaUpdater = ProductDeltaUpdater(db_source, db_target, queryMap)
+  deltaUpdater = ProductDeltaUpdater(db_source, db_target, queryMap, 64)
   deltaUpdater.streamDelta(1000)
 finally:
   os.unlink(pidfile)
