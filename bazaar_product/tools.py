@@ -157,7 +157,7 @@ class ProductsShaper(object):
             #then use second priority/second lowest special price (non-flash) as the selling price?
 
         product['min_price'] = min(product['flash_sale_price'] or 1000000000000.0, product['selling_price'] or 1000000000000.0, product['price'])
-        product['is_ndd'] = True if product['seller_name'].startswith('NDD ') else False
+        product['is_ndd'] = True if (product['seller_name'] or "").startswith('NDD ') else False
         product['ndd_city'] = product['seller_name'][4:] if product['is_ndd'] else None
 
     return products
