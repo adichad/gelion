@@ -36,7 +36,7 @@ if __name__ == '__main__':
   proc_id = 0
   procs = multiprocessing.cpu_count()*2
   threads = 4
-  batch_size = 10
+  batch_size = 100
 
   opts, args = getopt.getopt(sys.argv[1:], 'e:c:i:p:t:b:', ['env=', 'conf=', 'id=', 'procs=', 'threads=', 'batch-size='])
 
@@ -80,7 +80,9 @@ if __name__ == '__main__':
     while killer.runMore:
       pipe.streamDelta(batch_size)
       time.sleep(10)
-
+  except:
+    logger.error("exiting with exception: %s"%str(sys.exc_info()))
+    raise
   finally:
     os.unlink(pidfile)
     db_source.close()

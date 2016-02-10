@@ -3,6 +3,24 @@
 procs=16
 threads=1
 batch_size=100
+env=default
+
+
+while getopts ":e:" opt; do
+  case $opt in
+    e)
+      env=$OPTARG
+      ;;
+    \?)
+      echo "Invalid option: -$OPTARG" >&2
+      exit 1
+      ;;
+    :)
+      echo "Option -$OPTARG requires an argument." >&2
+      exit 1
+      ;;
+  esac
+done
 
 exec > /dev/null
 exec 2>&1
@@ -15,6 +33,6 @@ echo $SCRIPTPATH
 
 for (( i=0; i<$procs; i++ ))
 do
-  nohup python $SCRIPTPATH/batch_push.py -t $threads -b $batch_size -p $procs -i $i &
+  nohup python $SCRIPTPATH/batch_push.py -e $env -t $threads -b $batch_size -p $procs -i $i &
 done
 
