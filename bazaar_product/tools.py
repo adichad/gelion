@@ -297,13 +297,13 @@ class MandelbrotPipe(object):
       self.db_target.put(queryMap["product_failure_merge"] % format_strings % tuple(map(lambda rec: "(%s, '%s', '%s')"%(str(rec['product_id']), str(rec['source_dt']), str(rec['error'])), failures)))
       return None
 
-  def streamDelta(self, batchSize):
+  def streamDelta(self, batchSize, killer):
     start = int(round(time.time() * 1000))
     cur = self.db_target.getCursor(self.queries["product_id_fetch"], (self.proc_id, self.procs, ))
     deltaBatch = cur.fetchmany(batchSize)
     jobs = []
     count = 0
-    while len(deltaBatch)>0:
+    while len(deltaBatch)>0 and killer.runMore:
       ids = map(lambda rec: rec['product_id'], deltaBatch)
       logger.info("shaping product_ids: "+json.dumps(ids, cls=Encoder))
       job = self.post(self.shaper.shape(ids), deltaBatch)
@@ -314,4 +314,6 @@ class MandelbrotPipe(object):
     cur.close()
     map(lambda job: job.join(), jobs)
     end = int(round(time.time() * 1000))
-    logger.info("batch [%s mod %s] record count: %s; processing time (ms): %s"%(str(self.proc_id), str(self.procs), str(count), str(end - start)))
+    logger.info("batch [%s mod %s]%s record count: %s; processing time (ms): %s"%(str(self.proc_id), str(self.procs), "" if killer.runMore else " [killed]", str(count), str(end - start)))
+
+

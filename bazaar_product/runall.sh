@@ -6,10 +6,19 @@ batch_size=100
 env=default
 
 
-while getopts ":e:" opt; do
+while getopts ":e:b:t:p:" opt; do
   case $opt in
     e)
       env=$OPTARG
+      ;;
+    b)
+      batch_size=$OPTARG
+      ;;
+    t)
+      threads=$OPTARG
+      ;;
+    p)
+      procs=$OPTARG
       ;;
     \?)
       echo "Invalid option: -$OPTARG" >&2
