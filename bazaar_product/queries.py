@@ -104,7 +104,7 @@ queryMap = {
       INNER JOIN oc_option o
               ON po.option_id = o.option_id
       INNER JOIN oc_option_description od
-              ON po.option_id = od.option_id
+              ON o.option_id = od.option_id
            WHERE po.product_id = %s
   """,
 
@@ -175,9 +175,23 @@ queryMap = {
               ON cgo.option_id = o.option_id
       INNER JOIN oc_option_description od
               ON cgo.option_id = od.option_id
+      INNER JOIN oc_option_value ov
+              ON cgo.option_value_id = ov.option_value_id
       INNER JOIN oc_option_value_description ovd
-              ON cgo.option_value_id = ovd.option_value_id
+              ON ov.option_value_id = ovd.option_value_id
            WHERE pg.grouped_id = %s
+        ORDER BY ov.sort_order ASC
+  """,
+
+  "subscribed_product_store_fronts": """
+          SELECT sf.store_front_id as id, sf.mpdm_store_front_id as mpdm_id, sfm.subscribed_product_boost as boost, sf.store_front_title as title 
+            FROM oc_product_grouped pg
+      INNER JOIN oc_store_front_mapping sfm 
+              ON pg.subscribed_product_id = sfm.subscribed_product_id
+      INNER JOIN oc_store_front sf
+              ON sfm.store_front_id = sf.store_front_id
+           WHERE sfm.status = 1
+             AND pg.grouped_id = %s
   """,
 
   "subscribed_special_price": """

@@ -127,9 +127,11 @@ class ProductsShaper(object):
     reshaped = []
     options.sort(key = lambda opt: opt['name'])
     for key, group in groupby(options, lambda x: { 'name': x['name'] , 'type': x['type'], 'sort_order': x['sort_order'], 'id': x['id']}):
-      key['values'] = list(set(map(lambda val: val['value'], group)))
+      key['values'] = map(lambda val: val['value'], group)
       reshaped.append(key)
+    reshaped.sort(key = lambda opt: opt['sort_order'])
     return reshaped
+
 
   def subscribedProducts(self, ids):
     products = []
@@ -141,6 +143,7 @@ class ProductsShaper(object):
         id = product['product_id']
 
         product['options'] = self.reshapeOptions(self.db.get(self.queryMap["subscribed_product_options"], (id, )))
+        product['store_fronts'] = self.db.get(self.queryMap["subscribed_product_store_fronts"], (id, ))
         prices = self.db.get(self.queryMap["subscribed_special_price"], (id, ))
 
         product['flash_sale_price'] = None
@@ -157,7 +160,7 @@ class ProductsShaper(object):
             #then use second priority/second lowest special price (non-flash) as the selling price?
 
         product['min_price'] = min(product['flash_sale_price'] or 1000000000000.0, product['selling_price'] or 1000000000000.0, product['price'])
-        product['is_ndd'] = True if (product['seller_name'] or "").startswith('NDD ') else False
+        product['is_ndd'] = 1 if (product['seller_name'] or "").startswith('NDD ') else 0
         product['ndd_city'] = product['seller_name'][4:] if product['is_ndd'] else None
 
     return products
