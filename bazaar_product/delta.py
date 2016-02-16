@@ -8,20 +8,6 @@ import logging.handlers
 import os,sys
 import getopt
 
-logger = logging.getLogger('etl_product')
-logger.setLevel(logging.INFO)
-LOG_FILENAME = "/tmp/etl.product.delta.log"
-handler = logging.handlers.RotatingFileHandler(LOG_FILENAME, maxBytes=100000000, backupCount=5)
-handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-logger.addHandler(handler)
-
-pid = str(os.getpid())
-pidfile = "/tmp/etl.product.delta.pid"
-if os.path.isfile(pidfile):
-  logger.warn( "%s already exists, exiting" % pidfile )
-  sys.exit()
-
-file(pidfile, 'w').write(pid)
 
 script_path = os.path.dirname(os.path.abspath(__file__))
 env = 'default'
@@ -41,6 +27,21 @@ for k, v in opts:
   elif k in ("-r", "-range"):
     range = int(v)
 
+logger = logging.getLogger('etl_product')
+logger.setLevel(logging.INFO)
+LOG_FILENAME = "/tmp/etl.product.%s.delta.log"%env
+handler = logging.handlers.RotatingFileHandler(LOG_FILENAME, maxBytes=100000000, backupCount=5)
+handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+logger.addHandler(handler)
+
+pid = str(os.getpid())
+pidfile = "/tmp/etl.product.%s.delta.pid"%env
+
+if os.path.isfile(pidfile):
+  logger.warn( "%s already exists, exiting" % pidfile )
+  sys.exit()
+
+file(pidfile, 'w').write(pid)
 
 try:
   cfg = Config(file(config_file))[env]
