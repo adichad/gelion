@@ -1,11 +1,12 @@
 
-CREATE DATABASE `etl`;
+CREATE DATABASE IF NOT EXISTS `etl`;
 
--- GRANT ALL PRIVILEGES ON `etl`.* TO 'etl'@'localhost'
+GRANT ALL PRIVILEGES ON `etl`.* TO 'etl'@'localhost' identified by 'etl';
+FLUSH PRIVILEGES;
 
 use `etl`;
 
-CREATE TABLE `product_status` (
+CREATE TABLE IF NOT EXISTS `product_status` (
   `product_id` int(11) NOT NULL,
   `source_dt` datetime NOT NULL,
   `target_dt` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
@@ -18,7 +19,7 @@ CREATE TABLE `product_status` (
   KEY `bucket` (`bucket`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-CREATE TABLE `product_bookmark` (
+CREATE TABLE IF NOT EXISTS `product_bookmark` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `log_id` int(11) NOT NULL,
   `recs` int(11) NOT NULL,
