@@ -67,9 +67,12 @@ queryMap = {
   """,
 
   "subscribed_ids": """
-          SELECT DISTINCT grouped_id
-            FROM oc_product_grouped
-           WHERE product_id = %s
+          SELECT DISTINCT pg.grouped_id
+            FROM oc_product_grouped pg
+      INNER JOIN oc_product p
+              ON pg.grouped_id = p.product_id
+           WHERE pg.product_id = %s
+             AND p.status = 1
            LIMIT 100
   """,
 
