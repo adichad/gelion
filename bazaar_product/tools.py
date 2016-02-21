@@ -24,7 +24,7 @@ class Encoder(json.JSONEncoder):
     return super(Encoder, self).default(o)
 
 
-class BaseDB(object):
+class MySQLDB(object):
   conn = None
   config = None
 

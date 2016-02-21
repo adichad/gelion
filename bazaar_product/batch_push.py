@@ -1,7 +1,7 @@
 
 from config import Config
 import json
-from tools import BaseDB, ProductsShaper, MandelbrotPipe
+from tools import MySQLDB, ProductsShaper, MandelbrotPipe
 from queries import queryMap
 import grequests
 import getopt, sys
@@ -72,8 +72,8 @@ if __name__ == '__main__':
     logger.info("pidfile: "+pidfile)
     cfg = Config(file(config_file))[env]
 
-    db_source = BaseDB(cfg['db']['source'])
-    db_target = BaseDB(cfg['db']['management'])
+    db_source = MySQLDB(cfg['db']['source'])
+    db_target = MySQLDB(cfg['db']['management'])
     url = cfg['mandelbrot']['url']
     shaper = ProductsShaper(db_source, queryMap)
     pipe = MandelbrotPipe(db_source, db_target, queryMap, proc_id, procs, shaper, url, grequests.Pool(threads))

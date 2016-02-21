@@ -1,7 +1,7 @@
 
 from config import Config
 import json
-from tools import MySQLDB, Encoder, ProductDeltaUpdater
+from tools import PostgreSQLDB, MySQLDB, Encoder, GeoDeltaUpdater
 from queries import queryMap
 import logging
 import logging.handlers
@@ -27,15 +27,15 @@ for k, v in opts:
   elif k in ("-r", "-range"):
     range = int(v)
 
-logger = logging.getLogger('etl_product')
+logger = logging.getLogger('etl_geo')
 logger.setLevel(logging.INFO)
-LOG_FILENAME = "/tmp/etl.product.%s.delta.log"%env
+LOG_FILENAME = "/tmp/etl.geo.%s.delta.log"%env
 handler = logging.handlers.RotatingFileHandler(LOG_FILENAME, maxBytes=100000000, backupCount=5)
 handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
 logger.addHandler(handler)
 
 pid = str(os.getpid())
-pidfile = "/tmp/etl.product.%s.delta.pid"%env
+pidfile = "/tmp/etl.geo.%s.delta.pid"%env
 
 if os.path.isfile(pidfile):
   logger.warn( "%s already exists, exiting" % pidfile )
@@ -45,10 +45,10 @@ file(pidfile, 'w').write(pid)
 
 try:
   cfg = Config(file(config_file))[env]
-  db_source = MySQLDB(cfg['db']['source'])
+  db_source = PostgreSQLDB(cfg['db']['source'])
   db_target = MySQLDB(cfg['db']['management'])
 
-  deltaUpdater = ProductDeltaUpdater(db_source, db_target, queryMap, range)
+  deltaUpdater = GeoDeltaUpdater(db_source, db_target, queryMap, range)
   deltaUpdater.streamDelta(batch_size)
   db_source.close()
   db_target.close()
