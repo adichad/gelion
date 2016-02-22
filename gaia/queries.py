@@ -2,6 +2,64 @@
 
 queryMap = {
 
+  "base_geo": """
+          SELECT archived, 
+                 cast(ST_AsGeoJSON(center) as json)->'coordinates' as center,
+                 containers,
+                 created_on::timestamp,
+                 g.gid,
+                 name,
+                 related,
+                 cast(ST_AsGeoJSON(bbox) as json) as shape,
+                 s.stdcode as phone_prefix,
+                 coalesce(synonyms,ARRAY[]::varchar[]) as synonyms,
+                 gt.tags,
+                 types,
+                 updated_on::timestamp 
+            FROM geoinfo_current g
+ LEFT OUTER JOIN stdcodes s
+              ON g.gid = s.gid
+ LEFT OUTER JOIN geoinfo_tags gt
+              ON g.gid = gt.gid
+           WHERE g.gid in (%s)
+             AND g.name IS NOT NULL
+  """,
+
+  "container_ids": """
+          SELECT containers
+            FROM geoinfo_current
+           WHERE gid in (%s)
+             AND NOT archived
+             AND name IS NOT NULL
+  """,
+
+  "containers_dag": """
+          SELECT cast(ST_AsGeoJSON(center) as json)->'coordinates' as center,
+                 containers,
+                 gid, 
+                 name,
+                 cast(ST_AsGeoJSON(bbox) as json) as shape,
+                 coalesce(synonyms,ARRAY[]::varchar[]) as synonyms,
+                 types
+            FROM geoinfo_current
+           WHERE gid in (%s)
+             AND NOT archived
+             AND name IS NOT NULL
+  """,
+
+  "related_list": """
+          SELECT cast(ST_AsGeoJSON(center) as json) as center,
+                 containers,
+                 gid, 
+                 name,
+                 cast(ST_AsGeoJSON(bbox) as json) as shape,
+                 coalesce(synonyms,ARRAY[]::varchar[]) as synonyms,
+                 types
+            FROM geoinfo_current
+           WHERE gid in (%s)
+             AND NOT archived
+             AND name IS NOT NULL
+  """,
   "geo_delta_fetch": """
           SELECT new_gid as gid, max(new_updated_on) as last_updated_dt
             FROM geoinfo_delta
@@ -36,8 +94,8 @@ ON DUPLICATE KEY UPDATE source_dt = VALUES(source_dt)
   """,
 
   "geo_id_fetch": """
-          SELECT product_id, source_dt
-            FROM product_status
+          SELECT gid, source_dt
+            FROM geo_status
            WHERE %s = MOD(bucket, %s) 
              AND source_dt > target_dt
   """,
