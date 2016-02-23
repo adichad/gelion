@@ -59,7 +59,7 @@ if __name__ == '__main__':
 
   LOG_FILENAME = "/tmp/etl.geo.%(env)s.%(proc_id)i-%(procs)i.log"%locals()
   handler = logging.handlers.RotatingFileHandler(LOG_FILENAME, maxBytes=100000000, backupCount=5)
-  handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+  handler.setFormatter(logging.Formatter('[%(asctime)s] [%(filename)s:%(lineno)s] [%(levelname)s] %(message)s'))
   logger.addHandler(handler)
 
   if os.path.isfile(pidfile):

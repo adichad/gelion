@@ -107,7 +107,7 @@ ON DUPLICATE KEY UPDATE target_dt = VALUES(target_dt)
   """,
 
   "geo_failure_merge": """
-     INSERT INTO geo_status (product_id, source_dt, last_error)
+     INSERT INTO geo_status (gid, source_dt, last_error)
           VALUES %s
 ON DUPLICATE KEY UPDATE last_error = VALUES(last_error)
   """

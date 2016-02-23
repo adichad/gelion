@@ -260,8 +260,9 @@ def hook_factory(*factory_args, **factory_kwargs):
     failures = []
     try:
       res = json.loads(result.text)
-      if isinstance(res, dict):
+      if isinstance(res, dict) and ('response' in res) and ('successful' in res['response']):
         successes = filter(lambda rec: rec['gid'] in map(lambda id: long(id), res['response']['successful']), factory_kwargs['delta_batch'])
+        
         success_ids = map(lambda rec: rec['gid'], successes)
         failed_list = filter(lambda rec: rec['gid'] not in success_ids, factory_kwargs['delta_batch'])
         tgt_errors = dict((long(rec['gid']), rec['error']) for rec in res['response']['failed'])
