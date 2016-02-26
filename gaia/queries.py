@@ -36,13 +36,19 @@ queryMap = {
   "containers_dag": """
           SELECT cast(ST_AsGeoJSON(center) as json)->'coordinates' as center,
                  containers,
-                 gid, 
+                 g.gid, 
                  name,
                  cast(ST_AsGeoJSON(bbox) as json) as shape,
+                 s.stdcode as phone_prefix,
                  coalesce(synonyms,ARRAY[]::varchar[]) as synonyms,
+                 gt.tags,
                  types
-            FROM geoinfo_current
-           WHERE gid in (%s)
+            FROM geoinfo_current g
+ LEFT OUTER JOIN stdcodes s
+              ON g.gid = s.gid
+ LEFT OUTER JOIN geoinfo_tags gt
+              ON g.gid = gt.gid
+           WHERE g.gid in (%s)
              AND NOT archived
              AND name IS NOT NULL
   """,
@@ -50,13 +56,19 @@ queryMap = {
   "related_list": """
           SELECT cast(ST_AsGeoJSON(center) as json) as center,
                  containers,
-                 gid, 
+                 g.gid, 
                  name,
                  cast(ST_AsGeoJSON(bbox) as json) as shape,
+                 s.stdcode as phone_prefix,
                  coalesce(synonyms,ARRAY[]::varchar[]) as synonyms,
+                 gt.tags,
                  types
-            FROM geoinfo_current
-           WHERE gid in (%s)
+            FROM geoinfo_current g
+ LEFT OUTER JOIN stdcodes s
+              ON g.gid = s.gid
+ LEFT OUTER JOIN geoinfo_tags gt
+              ON g.gid = gt.gid
+           WHERE g.gid in (%s)
              AND NOT archived
              AND name IS NOT NULL
   """,
