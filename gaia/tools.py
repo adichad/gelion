@@ -234,7 +234,7 @@ class GeoDeltaUpdater(object):
       format_strings = ','.join(['%s'] * len(deltaBatch))
       self.db_target.put(
         self.queries["geo_delta_merge"] % format_strings % 
-        tuple(map(lambda rec: "(%s, '%s', %s)"%(str(rec['gid']), str(rec['last_updated_dt'])[:-6], str(randint(0, self.procs-1))), deltaBatch))
+        tuple(map(lambda rec: "(%s, '%s', %s)"%(str(rec['gid']), rec['last_log_id'], str(randint(0, self.procs-1))), deltaBatch))
       )
       count+=len(deltaBatch)
       deltaBatch = cur.fetchmany(batchSize)
@@ -266,22 +266,22 @@ def hook_factory(*factory_args, **factory_kwargs):
         success_ids = map(lambda rec: rec['gid'], successes)
         failed_list = filter(lambda rec: rec['gid'] not in success_ids, factory_kwargs['delta_batch'])
         tgt_errors = dict((long(rec['gid']), rec['error']) for rec in res['response']['failed'])
-        failures = map(lambda rec: {"gid": long(rec['gid']), "source_dt": rec['source_dt'], "error": tgt_errors[long(rec['gid'])] if long(rec['gid']) in tgt_errors else "no such gid in source"}, failed_list)
+        failures = map(lambda rec: {"gid": long(rec['gid']), "source_log_id": rec['source_log_id'], "error": tgt_errors[long(rec['gid'])] if long(rec['gid']) in tgt_errors else "no such gid in source"}, failed_list)
       else:
-        failures = map(lambda rec: {"gid": rec['gid'], "source_dt": rec['source_dt'], "error": result.text}, factory_kwargs['delta_batch'])
+        failures = map(lambda rec: {"gid": rec['gid'], "source_log_id": rec['source_log_id'], "error": result.text}, factory_kwargs['delta_batch'])
     except Exception, e:
       logger.error("Exception: "+str(e))
       successes = []
-      failures = map(lambda rec: {"gid": rec['gid'], "source_dt": rec['source_dt'], "error": result.text}, factory_kwargs['delta_batch'])
+      failures = map(lambda rec: {"gid": rec['gid'], "source_log_id": rec['source_log_id'], "error": result.text}, factory_kwargs['delta_batch'])
  
     db = factory_kwargs['db']
     try:
       if len(successes) > 0:
         format_strings = ','.join(['%s'] * len(successes))
-        db.put(queryMap["geo_success_merge"] % format_strings % tuple(map(lambda rec: "(%s, '%s', '%s')"%(str(rec['gid']), str(rec['source_dt']), str(rec['source_dt'])), successes)))
+        db.put(queryMap["geo_success_merge"] % format_strings % tuple(map(lambda rec: "(%s, %s, %s)"%(str(rec['gid']), str(rec['source_log_id']), str(rec['source_log_id'])), successes)))
       if len(failures) > 0:
         format_strings = ','.join(['%s'] * len(failures))
-        db.put(queryMap["geo_failure_merge"] % format_strings % tuple(map(lambda rec: "(%s, '%s', '%s')"%(str(rec['gid']), str(rec['source_dt']), str(rec['error'])), failures)))
+        db.put(queryMap["geo_failure_merge"] % format_strings % tuple(map(lambda rec: "(%s, %s, '%s')"%(str(rec['gid']), str(rec['source_log_id']), str(rec['error'])), failures)))
     except Exception, e:
       logger.error(str(e))
     result.close()
@@ -316,9 +316,9 @@ class MandelbrotPipe(object):
       req = grequests.post(self.url, data = json.dumps(data, cls=Encoder, indent=2), hooks = {'response': [hook_factory(delta_batch=deltaBatch, db=self.db_target)]})
       return grequests.send(req, self.requestPool)
     except Exception, e:
-      failures = map(lambda rec: {"gid": rec['gid'], "source_dt": rec['source_dt'], "error": str(e)}, deltaBatch)
+      failures = map(lambda rec: {"gid": rec['gid'], "source_log_id": rec['source_log_id'], "error": str(e)}, deltaBatch)
       format_strings = ','.join(['%s'] * len(failures))
-      self.db_target.put(queryMap["geo_failure_merge"] % format_strings % tuple(map(lambda rec: "(%s, '%s', '%s')"%(str(rec['gid']), str(rec['source_dt']), str(rec['error'])), failures)))
+      self.db_target.put(queryMap["geo_failure_merge"] % format_strings % tuple(map(lambda rec: "(%s, '%s', '%s')"%(str(rec['gid']), rec['source_log_id'], str(rec['error'])), failures)))
       return None
 
   def streamDelta(self, batchSize, killer):

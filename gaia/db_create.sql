@@ -8,14 +8,14 @@ use `etl`;
 
 CREATE TABLE IF NOT EXISTS `geo_status` (
   `gid` bigint NOT NULL,
-  `source_dt` datetime NOT NULL,
-  `target_dt` datetime NOT NULL DEFAULT '1970-01-01 00:00:00',
+  `source_log_id` bigint NOT NULL,
+  `target_log_id` bigint NOT NULL DEFAULT 0,
   `timestamp` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `bucket` int(11) NOT NULL DEFAULT 9999,
   `last_error` varchar(1024) NOT NULL DEFAULT '',
   PRIMARY KEY (`gid`),
-  KEY `source_dt` (`source_dt`),
-  KEY `target_dt` (`target_dt`),
+  KEY `source_log_id` (`source_log_id`),
+  KEY `target_log_id` (`target_log_id`),
   KEY `bucket` (`bucket`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
