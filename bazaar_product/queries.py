@@ -198,13 +198,12 @@ queryMap = {
   """,
 
   "subscribed_special_price": """
-          SELECT price,date_start,date_end,ecflashsale_id 
+          SELECT price,priority,date_start,date_end,ecflashsale_id,is_bazaar_price 
             FROM oc_product_special ps 
            WHERE ps.product_id = %s 
-             AND ((ps.date_start = '0000-00-00' OR ps.date_start < NOW()) 
-             AND (ps.date_end = '0000-00-00' OR ps.date_end > NOW())) 
+             AND (ps.date_end = '0000-00-00' OR ps.date_end > NOW()) 
         ORDER BY ps.priority ASC, ps.price ASC 
-           LIMIT 2
+           LIMIT 100
   """,
 
   "product_delta_fetch": """

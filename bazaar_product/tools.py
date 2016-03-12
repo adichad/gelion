@@ -146,20 +146,48 @@ class ProductsShaper(object):
         product['store_fronts'] = self.db.get(self.queryMap["subscribed_product_store_fronts"], (id, ))
         prices = self.db.get(self.queryMap["subscribed_special_price"], (id, ))
 
+        product['flash_sales'] = []
+        product['bazaar_prices'] = []
+        product['selling_prices'] = []
         product['flash_sale_price'] = None
         product['selling_price'] = None
+        product['bazaar_price'] = None
         for price in prices:
-          if price['ecflashsale_id']:
-            product['flash_sale_id'] = price['ecflashsale_id']
-            product['flash_sale_price'] = price['price']
-            product['flash_sale_start_date'] = price['date_start']
-            product['flash_sale_end_date'] = price['date_end']
-          else:
-            product['selling_price'] = price['price'] 
-            #TOASK: if a flash sale is not pri-1 or pri-2 or not among the 2 lowest special prices, 
-            #then use second priority/second lowest special price (non-flash) as the selling price?
-
-        product['min_price'] = min(product['flash_sale_price'] or 1000000000000.0, product['selling_price'] or 1000000000000.0, product['price'])
+          if price['price'] > 0:
+            if price['ecflashsale_id']:
+              product['flash_sale_id'] = price['ecflashsale_id']
+              product['flash_sale_price'] = price['price']
+              product['flash_sale_start_date'] = price['date_start']
+              product['flash_sale_end_date'] = price['date_end']
+              flash_sale = {}
+              flash_sale['id'] = price['ecflashsale_id']
+              flash_sale['price'] = price['price']
+              flash_sale['start_date'] = price['date_start']
+              flash_sale['end_date'] = price['date_end']
+              flash_sale['priority'] = price['priority']
+              product['flash_sales'].append(flash_sale) 
+            elif price['is_bazaar_price']:
+              product['bazaar_price'] = price['price']
+              product['bazaar_price_start_date'] = price['date_start']
+              product['bazaar_price_end_date'] = price['date_end']
+              bazaar_price = {}
+              bazaar_price['price'] = price['price']
+              bazaar_price['start_date'] = price['date_start']
+              bazaar_price['end_date'] = price['date_end']
+              bazaar_price['priority'] = price['priority']
+              product['bazaar_prices'].append(bazaar_price)
+            else:
+              product['selling_price'] = price['price']
+              product['selling_price_start_date'] = price['date_start']
+              product['selling_price_end_date'] = price['date_end']
+              selling_price = {}
+              selling_price['price'] = price['price']
+              selling_price['start_date'] = price['date_start']
+              selling_price['end_date'] = price['date_end']
+              selling_price['priority'] = price['priority']
+              product['selling_prices'].append(selling_price)
+             
+        product['min_price'] = min(product['flash_sale_price'] or 1000000000000.0, product['bazaar_price'] or 1000000000000.0, product['selling_price'] or 1000000000000.0, product['price'])
         product['is_ndd'] = 1 if (product['seller_name'] or "").startswith('NDD ') else 0
         product['ndd_city'] = product['seller_name'][4:] if product['is_ndd'] else None
 
