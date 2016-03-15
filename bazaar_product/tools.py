@@ -99,10 +99,12 @@ class MySQLDB(object):
 
 class ProductsShaper(object):
   db = None
+  db_mpdm = None
   queryMap = None
 
-  def __init__(self, db, queryMap):
+  def __init__(self, db, db_mpdm, queryMap):
     self.db = db
+    self.db_mpdm = db_mpdm
     self.queryMap = queryMap
 
   def ancestorCategoryIDList(self, ids, accumulator):
@@ -144,6 +146,11 @@ class ProductsShaper(object):
 
         product['options'] = self.reshapeOptions(self.db.get(self.queryMap["subscribed_product_options"], (id, )))
         product['store_fronts'] = self.db.get(self.queryMap["subscribed_product_store_fronts"], (id, ))
+        
+        mpdm_shit = self.db_mpdm.get(self.queryMap["mpdm_subscribed_product"], (product['subscribed_product_id'], ))[0]
+        product['shipping_charge'] = mpdm_shit['shipping_charge']
+        product['transfer_price'] = mpdm_shit['transfer_price']
+        product['is_cod_apriori'] = True if mpdm_shit['is_cod_apriori'] > 0 else False
         prices = self.db.get(self.queryMap["subscribed_special_price"], (id, ))
 
         product['flash_sales'] = []

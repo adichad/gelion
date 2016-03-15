@@ -27,6 +27,7 @@ queryMap = {
                  p.width,
                  p.height,
                  p.length_class_id,
+                 pgt.layout,
                  p.subtract,
                  p.minimum,
                  p.sort_order,
@@ -59,6 +60,8 @@ queryMap = {
               ON ss.stock_status_id = p.stock_status_id
  LEFT OUTER JOIN oc_product_image pi
               ON p.product_id = pi.product_id
+ LEFT OUTER JOIN oc_product_grouped_type pgt
+              ON p.product_id = pgt.product_id
            WHERE p.product_id in (%s)
              AND pd.language_id = 1
              AND p.model = 'grouped'
@@ -158,7 +161,18 @@ queryMap = {
                  pg.customer_id as seller_id,
                  pg.seller_id as crm_seller_id,
                  pg.subscribed_product_id,
-                 ctc.companyname as seller_name
+                 ctc.companyname as seller_name,
+                 a.firstname as seller_firstname,
+                 a.lastname as seller_lastname,
+                 a.address_1 as seller_address_1,
+                 a.address_2 as seller_address_2,
+                 a.city as seller_city,
+                 a.postcode as seller_postcode,
+                 c.name as seller_country,
+                 c.iso_code_2 as seller_country_code_iso_2,
+                 c.iso_code_3 as seller_country_code_iso_3,
+                 z.name as seller_zone,
+                 z.code as seller_zone_code
             FROM oc_product p
       INNER JOIN oc_product_grouped pg
               ON p.product_id = pg.grouped_id
@@ -166,7 +180,25 @@ queryMap = {
               ON pg.customer_id = ctc.customer_id
  LEFT OUTER JOIN oc_stock_status ss
               ON ss.stock_status_id = p.stock_status_id
+ LEFT OUTER JOIN oc_address a
+              ON pg.customer_id = a.customer_id
+ LEFT OUTER JOIN oc_country c
+              ON a.country_id = c.country_id
+ LEFT OUTER JOIN oc_zone z
+              ON a.zone_id = z.zone_id
+             AND a.country_id = z.country_id
            WHERE p.product_id in (%s)
+  """,
+
+
+  "mpdm_subscribed_product": """
+          SELECT coalesce(sc.shipping_charges, sp.subscribe_shipping_charge) as shipping_charge,
+                 sp.transfer_price as transfer_price,
+                 sp.is_cod as is_cod_apriori
+            FROM subscribed_product sp
+ LEFT OUTER JOIN shipping_charges sc
+              ON sp.subscribed_product_id = sc.subscribed_id
+           WHERE sp.subscribed_product_id = %s;
   """,
 
   "subscribed_product_options": """

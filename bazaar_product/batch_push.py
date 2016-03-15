@@ -73,9 +73,10 @@ if __name__ == '__main__':
     cfg = Config(file(config_file))[env]
 
     db_source = MySQLDB(cfg['db']['source'])
+    db_mpdm = MySQLDB(cfg['db']['mpdm'])
     db_target = MySQLDB(cfg['db']['management'])
     url = cfg['mandelbrot']['url']
-    shaper = ProductsShaper(db_source, queryMap)
+    shaper = ProductsShaper(db_source, db_mpdm, queryMap)
     pipe = MandelbrotPipe(db_source, db_target, queryMap, proc_id, procs, shaper, url, grequests.Pool(threads))
     while killer.runMore:
       pipe.streamDelta(batch_size, killer)
@@ -86,6 +87,7 @@ if __name__ == '__main__':
   finally:
     os.unlink(pidfile)
     db_source.close()
+    db_mpdm.close()
     db_target.close()
     
 
