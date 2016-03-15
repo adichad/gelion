@@ -27,7 +27,7 @@ queryMap = {
                  p.width,
                  p.height,
                  p.length_class_id,
-                 pgt.layout,
+                 pgt.pg_layout,
                  p.subtract,
                  p.minimum,
                  p.sort_order,
