@@ -1,0 +1,95 @@
+
+from config import Config
+import json
+from tools import MSSQLDB, MySQLDB, GroceryShaper, MandelbrotPipe
+from queries import queryMap
+import grequests
+import getopt, sys
+import os
+
+import signal
+import time
+import logging
+import logging.handlers
+import multiprocessing
+
+logger = logging.getLogger('etl_grocery')
+logger.setLevel(logging.INFO)
+
+
+class GracefulKiller:
+  runMore = True
+  def __init__(self):
+    signal.signal(signal.SIGINT, self.exit_gracefully)
+    signal.signal(signal.SIGTERM, self.exit_gracefully)
+
+  def exit_gracefully(self, signum, frame):
+    self.runMore = False
+
+
+if __name__ == '__main__':
+  killer = GracefulKiller()
+  script_path = os.path.dirname(os.path.abspath(__file__))
+
+  env = 'default'
+  config_file = script_path+'/simple.cfg'
+  proc_id = 0
+  procs = 1 #multiprocessing.cpu_count()*2
+  threads = 4
+  batch_size = 5
+
+  opts, args = getopt.getopt(sys.argv[1:], 'e:c:i:p:t:b:', ['env=', 'conf=', 'id=', 'procs=', 'threads=', 'batch-size='])
+
+  for k, v in opts:
+    if k in ("-e", "--env"): 
+      env = v
+    elif k in ("-c", "--conf"):
+      config_file = v
+    elif k in ("-i", "--id"):
+      proc_id = int(v)
+    elif k in ("-p", "--procs"):
+      procs = int(v)
+    elif k in ("-t", "--threads"):
+      threads = int(v)
+    elif k in ("-b", "--batch-size"):
+      batch_size = int(v)
+
+  pid = str(os.getpid())
+  pidfile = "/tmp/etl.grocery.%(env)s.%(proc_id)i-%(procs)i.pid"%locals()
+
+  LOG_FILENAME = "/tmp/etl.grocery.%(env)s.%(proc_id)i-%(procs)i.log"%locals()
+  handler = logging.handlers.RotatingFileHandler(LOG_FILENAME, maxBytes=100000000, backupCount=5)
+  handler.setFormatter(logging.Formatter('[%(asctime)s] [%(filename)s:%(lineno)s] [%(levelname)s] %(message)s'))
+  logger.addHandler(handler)
+
+  if os.path.isfile(pidfile):
+    logger.warn( "%s already exists, exiting" % pidfile )
+    sys.exit()
+
+  file(pidfile, 'w').write(pid)
+  logger.info("pidfile: "+pidfile)
+
+  cfg = Config(file(config_file))[env]
+
+  logger.info("connecting to databases for env: %s" % env)
+  try:
+    db_source = MSSQLDB(cfg['db']['source'])
+    db_target = MySQLDB(cfg['db']['management'])
+
+    try:
+      url = cfg['mandelbrot']['url']
+      shaper = GroceryShaper(db_source, queryMap)
+      pipe = MandelbrotPipe(db_source, db_target, queryMap, proc_id, procs, shaper, url, grequests.Pool(threads))
+      while killer.runMore:
+        pipe.streamDelta(batch_size, killer)
+        time.sleep(10)
+    except:
+      logger.error("exiting with exception: %s"%str(sys.exc_info()))
+      raise
+    finally:
+      db_source.close()
+      db_target.close()
+  finally:
+    os.unlink(pidfile)
+    
+
