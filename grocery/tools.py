@@ -256,6 +256,8 @@ class GroceryShaper(object):
       grocery['media'] = self.db.get(self.queryMap["grocery_media"] % tuple([str(grocery['variant_id'])]))
       grocery['categories'] = self.db.get(self.queryMap["grocery_category"] % tuple([str(grocery['product_id'])]))
       grocery['items'] = self.db.get(self.queryMap["grocery_item"] % tuple([str(grocery['variant_id'])]))
+      grocery['variant_title_head'] = filter(lambda y: len(y)>0, map(lambda x: x.strip(), grocery['variant_title'].split("+", 1)))
+      grocery['variant_title_head'] = grocery['variant_title_head'][0] if len(grocery['variant_title_head']) == 1 else ''
       for item in grocery['items']:
         item['postal_codes'] = filter(lambda p: p !="", map(lambda p: p.strip(), (item['postal_codes'] or "").split(';')))
         item['areas'] = filter(lambda p: p !="", map(lambda p: p.strip(), (item['areas'] or "").split(';')))
