@@ -224,7 +224,7 @@ queryMap = {
       INNER JOIN oc_store_front_mapping sfm 
               ON pg.subscribed_product_id = sfm.subscribed_product_id
       INNER JOIN oc_store_front sf
-              ON sfm.store_front_id = sf.store_front_id
+              ON sfm.store_front_id = sf.mpdm_store_front_id
            WHERE sfm.status = 1
              AND pg.grouped_id = %s
   """,
