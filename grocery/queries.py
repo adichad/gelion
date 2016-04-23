@@ -114,6 +114,7 @@ queryMap = {
                 ,imvpla.VendorId
                 ,imvpla.Status
                 ,i.update_date
+                ,l.status
                 ,mz.Id
                 ,mz.ZonalCode
                 ,mz.Status
