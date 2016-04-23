@@ -15,6 +15,7 @@ queryMap = {
                 ,p.status AS product_status
                 ,b.name AS brand_name
                 ,b.brand_code AS brand_code
+                ,b.status AS brand_status
             FROM Variant v
       INNER JOIN Ref_Product_Variant rpv
               ON v.variant_id = rpv.ref_m_variant_id
@@ -30,6 +31,7 @@ queryMap = {
                  mc.category_id AS id
                 ,ltrim(rtrim(substring(name, 0, case when charindex('1', name)>0 then charindex('1',name) else len(name)+1 end))) AS name
                 ,mc.status AS status
+                ,lower(mc.ParentName) AS parent_name
             FROM M_Category mc
       INNER JOIN Ref_Category_Product rcp
               ON mc.category_id = rcp.ref_m_category_id
@@ -68,6 +70,7 @@ queryMap = {
                 ,imvpla.VendorId as pla_vendor_id
                 ,imvpla.Status as pla_status
                 ,i.update_date as modified_dt
+                ,l.status as login_status
                 ,mz.Id as zone_id
                 ,mz.ZonalCode as zone_code
                 ,mz.Status as zone_status
