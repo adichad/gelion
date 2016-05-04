@@ -63,6 +63,8 @@ queryMap = {
                 ,i.AvailabilityMax AS availability_max
                 ,i.customer_price AS customer_price
                 ,i.display_price
+                ,i.cost as transfer_price
+                ,i.BillingPrice as billing_price
                 ,CAST(CAST(CASE WHEN i.display_price > 0 THEN ((i.display_price - i.customer_price) * 100 / i.display_price) ELSE 0 END AS DECIMAL(8,1)) AS FLOAT) AS discount_percent
                 ,imvpla.average_price as pla_average_price
                 ,imvpla.display_price as pla_display_price
@@ -79,6 +81,12 @@ queryMap = {
                 ,mz.CityName as city
                 ,mz.Statename as state
                 ,mz.CountryName as country
+                ,mc.city_id
+                ,mc.status as city_status
+                ,mc.isfmcg as city_is_fmcg
+                ,ms.status as state_status
+                ,ms.isfmcg as state_is_fmcg
+                ,mco.status as country_status
                 ,count(distinct ref_order_id) as order_count
                 ,coalesce(sum(TotalPrice), 0.0) as gsv
                 ,coalesce(sum(quantity), 0) as quantity_sold
@@ -87,6 +95,12 @@ queryMap = {
               ON i.created_by = l.login_id
       INNER JOIN M_ZoneCode mz
               ON l.ZonalCodeID = mz.Id
+      INNER JOIN M_City mc
+              ON mz.p_ref_m_city_id = mc.city_id
+      INNER JOIN M_States ms
+              ON mz.p_ref_m_state_id = ms.state_id
+      INNER JOIN M_Country mco
+              ON mz.ref_m_country_id = mco.country_id
  LEFT OUTER JOIN ItemsMinValuePLA imvpla
               ON i.item_id = imvpla.item_id
              AND coalesce(imvpla.Sno, 0) > 0
@@ -108,6 +122,8 @@ queryMap = {
                 ,i.AvailabilityMax
                 ,i.customer_price
                 ,i.display_price
+                ,i.cost
+                ,i.BillingPrice
                 ,imvpla.average_price
                 ,imvpla.display_price
                 ,imvpla.customer_price
@@ -123,6 +139,12 @@ queryMap = {
                 ,mz.CityName
                 ,mz.Statename
                 ,mz.CountryName
+                ,mc.city_id
+                ,mc.status
+                ,mc.isfmcg
+                ,ms.status
+                ,ms.isfmcg
+                ,mco.status
   """,
 
   "grocery_delta_fetch": """
