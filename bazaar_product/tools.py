@@ -138,10 +138,10 @@ class ProductsShaper(object):
   def subscribedProducts(self, ids):
     products = []
     if len(ids) > 0:
-      ids_list = ','.join(str(ids))
+      ids_list = ','.join(map(lambda idi: str(idi), ids))
       format_strings = ','.join(['%s'] * len(ids))
-      
-      products = self.db.get(self.queryMap["subscribed_product"], (ids_list, ids_list, ))
+      query = self.queryMap["subscribed_product"]%(ids_list, ids_list, )
+      products = self.db.get(self.queryMap["subscribed_product"]%(ids_list, ids_list, ))
 
       for product in products:
         id = product['product_id']
@@ -217,6 +217,10 @@ class ProductsShaper(object):
       product['parent_categories'] = self.ancestorCategories(map(lambda cat: cat['category_id'], product['categories']), product)
       product['options'] = self.reshapeOptions(self.db.get(self.queryMap["base_product_options"], (id, )))
       product['attributes'] = self.db.get(self.queryMap["base_product_attributes"], (id, ))
+      product['attributes_value'] = []
+      for attribute in product['attributes']:
+        if attribute['name'].lower().startswith('filter'):
+          product['attributes_value'].append(attribute['value'])
       product['stores'] = self.db.get(self.queryMap["base_product_stores"], (id, ))
       product['reviews'] = self.db.get(self.queryMap["base_product_reviews"], (id, ))
       subscribed_ids = map(lambda rec: rec['grouped_id'], self.db.get(self.queryMap["subscribed_ids"], (id, )))
