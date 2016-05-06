@@ -280,7 +280,7 @@ queryMap = {
   """,
 
   "subscribed_product_store_fronts": """
-          SELECT sf.store_front_id as id, sf.mpdm_store_front_id as mpdm_id, sfm.subscribed_product_boost as boost, sf.store_front_title as title, sf.status as status, sfm.status as mapping_status
+          SELECT sf.store_front_id as id, sf.mpdm_store_front_id as mpdm_id, sfm.subscribed_product_boost as boost, sf.store_front_title as title, sf.store_front_title_h1 as title_h1, sf.status as status, sfm.status as mapping_status
             FROM oc_product_grouped pg
       INNER JOIN oc_store_front_mapping sfm 
               ON pg.subscribed_product_id = sfm.subscribed_product_id
