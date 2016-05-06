@@ -143,6 +143,7 @@ queryMap = {
                  p.quantity,
                  p.stock_status_id,
                  ss.name as stock_status,
+                 p.image,
                  p.shipping,
                  p.price,
                  p.points,
@@ -172,7 +173,16 @@ queryMap = {
                  c.iso_code_2 as seller_country_code_iso_2,
                  c.iso_code_3 as seller_country_code_iso_3,
                  z.name as seller_zone,
-                 z.code as seller_zone_code
+                 z.code as seller_zone_code,
+                 GROUP_CONCAT(DISTINCT pi.image ORDER BY pi.sort_order ASC, pi.image ASC) as images,
+                 count(distinct op.order_id) as order_count,
+                 sum(op.quantity) as order_quantity,
+                 sum(op.price) as order_gsv,
+                 sum(op.discount) as order_discount_amount,
+                 sum(op.lpoints_earned) as order_loyalty_earned,
+                 max(op.date_added) as order_last_dt,
+                 avg(op.discount_pct) as order_discount_pct_avg
+                 
             FROM oc_product p
       INNER JOIN oc_product_grouped pg
               ON p.product_id = pg.grouped_id
@@ -187,7 +197,58 @@ queryMap = {
  LEFT OUTER JOIN oc_zone z
               ON a.zone_id = z.zone_id
              AND a.country_id = z.country_id
+ LEFT OUTER JOIN (          SELECT opi.product_id,
+                                   opi.quantity,
+                                   opi.order_id,
+                                   opi.price,
+                                   opi.discount,
+                                   opi.lpoints_earned,
+                                   oi.date_added,
+                                   CASE WHEN opi.price = 0.0 THEN 0.0 ELSE opi.discount*100.0/(opi.price+opi.discount) end as discount_pct
+                              FROM oc_order_product opi
+                        INNER JOIN oc_order oi
+                                ON opi.order_id = oi.order_id
+                               AND oi.date_added > DATE_SUB(NOW(), INTERVAL 2 MONTH)
+                             WHERE opi.product_id in (%s)) op
+              ON p.product_id = op.product_id
+  LEFT OUTER JOIN oc_product_image pi
+              ON p.product_id = pi.product_id
            WHERE p.product_id in (%s)
+        GROUP BY product_id,
+                 model,
+                 quantity,
+                 stock_status_id,
+                 ss.name,
+                 shipping,
+                 price,
+                 points,
+                 tax_class_id,
+                 date_available,
+                 subtract,
+                 minimum,
+                 sort_order,
+                 p.status,
+                 p.date_added,
+                 p.date_modified,
+                 p.viewed,
+                 p.pgvisibility,
+                 p.pgprice_from,
+                 p.pgprice_to,
+                 pg.customer_id,
+                 pg.seller_id,
+                 pg.subscribed_product_id,
+                 ctc.companyname,
+                 a.firstname,
+                 a.lastname,
+                 a.address_1,
+                 a.address_2,
+                 a.city,
+                 a.postcode,
+                 c.name,
+                 c.iso_code_2,
+                 c.iso_code_3,
+                 z.name,
+                 z.code
   """,
 
 
@@ -219,14 +280,13 @@ queryMap = {
   """,
 
   "subscribed_product_store_fronts": """
-          SELECT sf.store_front_id as id, sf.mpdm_store_front_id as mpdm_id, sfm.subscribed_product_boost as boost, sf.store_front_title as title 
+          SELECT sf.store_front_id as id, sf.mpdm_store_front_id as mpdm_id, sfm.subscribed_product_boost as boost, sf.store_front_title as title, sf.status as status, sfm.status as mapping_status
             FROM oc_product_grouped pg
       INNER JOIN oc_store_front_mapping sfm 
               ON pg.subscribed_product_id = sfm.subscribed_product_id
       INNER JOIN oc_store_front sf
               ON sfm.store_front_id = sf.mpdm_store_front_id
-           WHERE sfm.status = 1
-             AND pg.grouped_id = %s
+           WHERE pg.grouped_id = %s
   """,
 
   "subscribed_special_price": """
