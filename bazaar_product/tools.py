@@ -138,10 +138,10 @@ class ProductsShaper(object):
   def subscribedProducts(self, ids):
     products = []
     if len(ids) > 0:
-      ids_list = ','.join(str(ids))
+      ids_list = ','.join(map(lambda idi: str(idi), ids))
       format_strings = ','.join(['%s'] * len(ids))
-      
-      products = self.db.get(self.queryMap["subscribed_product"], (ids_list, ids_list, ))
+      query = self.queryMap["subscribed_product"]%(ids_list, ids_list, )
+      products = self.db.get(self.queryMap["subscribed_product"]%(ids_list, ids_list, ))
 
       for product in products:
         id = product['product_id']
