@@ -7,6 +7,8 @@ queryMap = {
                  v.variant_id AS variant_id
                 ,v.variant_code AS variant_code
                 ,v.title AS variant_title
+                ,v.notes AS variant_notes
+                ,v.full_description as variant_full_description
                 ,v.modify_date AS variant_modified_dt
                 ,v.status AS variant_status
                 ,p.product_id AS product_id
@@ -25,17 +27,52 @@ queryMap = {
               ON p.brand = b.brands_id
            WHERE v.variant_id in (%s)
   """,
-
+  
   "grocery_category": """
-          SELECT
-                 mc.category_id AS id
-                ,ltrim(rtrim(substring(name, 0, case when charindex('1', name)>0 then charindex('1',name) else len(name)+1 end))) AS name
-                ,mc.status AS status
-                ,lower(mc.ParentName) AS parent_name
+          SELECT mc.category_id as id
+                ,ltrim(rtrim(substring(mc.name, 0, case when charindex('1', mc.name)>0 then charindex('1', mc.name) else len(mc.name)+1 end))) AS name
+                ,case when mc.parent_id = mc.category_id then 0 else mc.parent_id end as parent_id
+                ,mc.status as status
+                ,lower(mc.parentname) as parent_name
+                ,CAST (substring(ltrim(rtrim(mc.filterby6)), 2, len(mc.filterby6)+1) as INT) as level
+                ,mc.isnav as isnav
             FROM M_Category mc
       INNER JOIN Ref_Category_Product rcp
               ON mc.category_id = rcp.ref_m_category_id
            WHERE rcp.ref_m_product_id in (%s)
+  """,
+
+  "grocery_category_hierarchy": """
+WITH category_hierarchy(id, name, parent_id, status, parent_name, level, isnav)
+AS
+(
+          SELECT mc.category_id as id
+                ,ltrim(rtrim(substring(mc.name, 0, case when charindex('1', mc.name)>0 then charindex('1', mc.name) else len(mc.name)+1 end))) AS name
+                ,case when mc.parent_id = mc.category_id then 0 else mc.parent_id end as parent_id
+                ,mc.status as status
+                ,lower(mc.parentname) as parent_name
+                ,CAST (substring(ltrim(rtrim(mc.filterby6)), 2, len(mc.filterby6)+1) as INT) as level
+                ,mc.isnav as isnav
+            FROM M_Category mc
+      INNER JOIN Ref_Category_Product rcp
+              ON mc.category_id = rcp.ref_m_category_id
+           WHERE rcp.ref_m_product_id in (%s)
+             AND mc.ParentName = 'Fmcg'
+       UNION ALL
+          SELECT mc.category_id as id
+                ,ltrim(rtrim(substring(mc.name, 0, case when charindex('1', mc.name)>0 then charindex('1',mc.name) else len(mc.name)+1 end))) AS name
+                ,case when mc.parent_id = mc.category_id then 0 else mc.parent_id end as parent_id
+                ,mc.status as status
+                ,lower(mc.parentname) as parent_name
+                ,CAST (substring(ltrim(rtrim(mc.filterby6)), 2, len(mc.filterby6)+1) as INT) as level
+                ,mc.isnav as isnav
+            FROM M_Category mc
+      INNER JOIN category_hierarchy ch
+              ON ch.parent_id = mc.category_id
+)
+SELECT id, name, parent_id, status, parent_name, isnav, level
+  FROM category_hierarchy ch
+OPTION (maxrecursion 0)
   """,
 
   "grocery_media": """
@@ -52,7 +89,7 @@ queryMap = {
                  i.item_id AS id
                 ,i.ItemCode AS code
                 ,i.Shipping_Charges AS shipping_charge
-                ,i.Deals AS deal_count
+                ,cast(ltrim(rtrim(i.Deals)) as INT) AS deal_count
                 ,i.DealText AS deal_text
                 ,i.isMin AS is_min
                 ,i.status AS status
@@ -65,10 +102,13 @@ queryMap = {
                 ,i.display_price
                 ,i.cost as transfer_price
                 ,i.BillingPrice as billing_price
+                ,(i.customer_price - (case when i.BillingPrice < i.cost then i.BillingPrice else i.cost end)) as margin
                 ,CAST(CAST(CASE WHEN i.display_price > 0 THEN ((i.display_price - i.customer_price) * 100 / i.display_price) ELSE 0 END AS DECIMAL(8,1)) AS FLOAT) AS discount_percent
                 ,imvpla.average_price as pla_average_price
                 ,imvpla.display_price as pla_display_price
                 ,imvpla.customer_price as pla_customer_price
+                ,(imvpla.customer_price - (case when i.BillingPrice < i.cost then i.BillingPrice else i.cost end)) as pla_margin
+                ,CAST(CAST(CASE WHEN imvpla.display_price > 0 THEN ((imvpla.display_price - imvpla.customer_price) * 100 / imvpla.display_price) ELSE 0 END AS DECIMAL(8,1)) AS FLOAT) AS pla_discount_percent
                 ,imvpla.VendorId as pla_vendor_id
                 ,imvpla.Status as pla_status
                 ,i.update_date as modified_dt
@@ -77,7 +117,8 @@ queryMap = {
                 ,mz.ZonalCode as zone_code
                 ,mz.Status as zone_status
                 ,mz.PostalCode as postal_codes
-                ,mz.Area as areas
+                ,STUFF((SELECT ','+convert(varchar(10), geoserviceareaid) FROM tblArea WHERE refzoneid=mz.Id AND status=1 FOR XML PATH('')) , 1 , 1 , '' ) as areas
+                ,STUFF((SELECT ','+convert(varchar(10), DeliveryDays) FROM DeliveryDays WHERE ItemId=i.item_id AND status=1 FOR XML PATH('')) , 1 , 1 , '' ) as delivery_days
                 ,mz.CityName as city
                 ,mz.Statename as state
                 ,mz.CountryName as country
@@ -124,11 +165,14 @@ queryMap = {
                 ,i.display_price
                 ,i.cost
                 ,i.BillingPrice
+                ,(i.customer_price - (case when i.BillingPrice < i.cost then i.BillingPrice else i.cost end)) 
                 ,imvpla.average_price
                 ,imvpla.display_price
                 ,imvpla.customer_price
                 ,imvpla.VendorId
                 ,imvpla.Status
+                ,(imvpla.customer_price - (case when i.BillingPrice < i.cost then i.BillingPrice else i.cost end))
+                ,CAST(CAST(CASE WHEN imvpla.display_price > 0 THEN ((imvpla.display_price - imvpla.customer_price) * 100 / imvpla.display_price) ELSE 0 END AS DECIMAL(8,1)) AS FLOAT)
                 ,i.update_date
                 ,l.status
                 ,mz.Id
@@ -145,6 +189,21 @@ queryMap = {
                 ,ms.status
                 ,ms.isfmcg
                 ,mco.status
+  """,
+
+  "grocery_storefront": """
+          select s.id
+                ,s.code
+                ,s.title
+                ,s.startdate
+                ,s.enddate
+                ,case when s.status = 1 then 1 else 0 end as status
+                ,case when sim.status = 1 then 1 else 0 end as mapping_status
+                ,sim.DealText as deal_text
+            from m_storefront s
+      inner join m_storefront_items_mapping sim
+              on s.id = sim.storefront_id
+             and sim.item_id in (%s)
   """,
 
   "grocery_delta_fetch": """
