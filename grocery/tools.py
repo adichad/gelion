@@ -256,6 +256,11 @@ class GroceryShaper(object):
       grocery['media'] = self.db.get(self.queryMap["grocery_media"] % tuple([str(grocery['variant_id'])]))
       grocery['categories'] = self.db.get(self.queryMap["grocery_category"] % tuple([str(grocery['product_id'])]))
       grocery['category_hierarchy'] = self.db.get(self.queryMap["grocery_category_hierarchy"] % tuple([str(grocery['product_id'])]))
+      grocery['category_l1'] = filter(lambda c: c['level'] == 1 && c['isnav'] == 1, grocery['category_hierarchy'])
+      grocery['category_l2'] = filter(lambda c: c['level'] == 2 && c['isnav'] == 1, grocery['category_hierarchy'])
+      grocery['category_l3'] = filter(lambda c: c['level'] == 3 && c['isnav'] == 1, grocery['category_hierarchy'])
+      grocery['category_l4'] = filter(lambda c: c['level'] == 4 && c['isnav'] == 1, grocery['category_hierarchy'])
+      grocery['category_l5'] = filter(lambda c: c['level'] == 5 && c['isnav'] == 1, grocery['category_hierarchy'])
       grocery['items'] = self.db.get(self.queryMap["grocery_item"] % tuple([str(grocery['variant_id'])]))
       grocery['variant_title_head'] = filter(lambda y: len(y)>0, map(lambda x: x.strip(), grocery['variant_title'].split("+", 1)))
       grocery['variant_title_head'] = grocery['variant_title_head'][0]  # if len(grocery['variant_title_head']) == 1 else ''
