@@ -75,7 +75,7 @@ queryMap = {
       INNER JOIN oc_product p
               ON pg.grouped_id = p.product_id
            WHERE pg.product_id = %s
-             AND p.status = 1
+        ORDER BY p.status DESC, pg.grouped_id DESC
            LIMIT 100
   """,
 
@@ -214,21 +214,7 @@ queryMap = {
   LEFT OUTER JOIN oc_product_image pi
               ON p.product_id = pi.product_id
            WHERE p.product_id in (%s)
-        GROUP BY p.product_id,
-                 ss.name,
-                 pg.product_grouped_id,
-                 ctc.companyname,
-                 a.firstname,
-                 a.lastname,
-                 a.address_1,
-                 a.address_2,
-                 a.city,
-                 a.postcode,
-                 c.name,
-                 c.iso_code_2,
-                 c.iso_code_3,
-                 z.name,
-                 z.code
+        GROUP BY pg.product_grouped_id
   """,
 
 
@@ -318,6 +304,7 @@ ON DUPLICATE KEY UPDATE source_dt = VALUES(source_dt)
             FROM product_status
            WHERE %s = MOD(bucket, %s) 
              AND source_dt > target_dt
+        ORDER BY product_id DESC
   """,
 
   "product_success_merge": """

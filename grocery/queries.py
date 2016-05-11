@@ -34,7 +34,6 @@ queryMap = {
                 ,case when mc.parent_id = mc.category_id then 0 else mc.parent_id end as parent_id
                 ,mc.status as status
                 ,lower(mc.parentname) as parent_name
-                ,CAST (substring(ltrim(rtrim(mc.filterby6)), 2, len(mc.filterby6)+1) as INT) as level
                 ,mc.isnav as isnav
             FROM M_Category mc
       INNER JOIN Ref_Category_Product rcp
@@ -58,6 +57,7 @@ AS
               ON mc.category_id = rcp.ref_m_category_id
            WHERE rcp.ref_m_product_id in (%s)
              AND mc.ParentName = 'Fmcg'
+             AND mc.status = 1
        UNION ALL
           SELECT mc.category_id as id
                 ,ltrim(rtrim(substring(mc.name, 0, case when charindex('1', mc.name)>0 then charindex('1',mc.name) else len(mc.name)+1 end))) AS name
@@ -69,6 +69,7 @@ AS
             FROM M_Category mc
       INNER JOIN category_hierarchy ch
               ON ch.parent_id = mc.category_id
+             AND mc.status = 1
 )
 SELECT id, name, parent_id, status, parent_name, isnav, level
   FROM category_hierarchy ch
@@ -193,7 +194,6 @@ OPTION (maxrecursion 0)
 
   "grocery_storefront": """
           select s.id
-                ,s.code
                 ,s.title
                 ,s.startdate
                 ,s.enddate
