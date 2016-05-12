@@ -43,7 +43,7 @@ class MySQLDB(object):
       passwd = self.config.passwd,
       db = self.config.name,
       charset = 'utf8',
-      init_command = "SET SESSION wait_timeout=3000;SET NAMES UTF8;SET time_zone='+0:00';SET SESSION group_concat_max_len = 1000000; SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;",
+      init_command = "SET SESSION wait_timeout=60;SET NAMES UTF8;SET time_zone='+0:00';SET SESSION group_concat_max_len = 1000000; SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;",
       cursorclass = MySQLdb.cursors.DictCursor)
 
   def putIdempotent(self, query, params=()):

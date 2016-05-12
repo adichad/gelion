@@ -81,8 +81,11 @@ if __name__ == '__main__':
       shaper = GroceryShaper(db_source, queryMap)
       pipe = MandelbrotPipe(db_source, db_target, queryMap, proc_id, procs, shaper, url, grequests.Pool(threads))
       while killer.runMore:
-        pipe.streamDelta(batch_size, killer)
-        time.sleep(10)
+        try:
+          pipe.streamDelta(batch_size, killer)
+          time.sleep(10)
+        except:
+          logger.error("exception: %s"%str(sys.exc_info()))
     except:
       logger.error("exiting with exception: %s"%str(sys.exc_info()))
       raise
