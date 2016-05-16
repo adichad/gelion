@@ -149,6 +149,7 @@ class ProductsShaper(object):
         product['options'] = self.reshapeOptions(self.db.get(self.queryMap["subscribed_product_options"], (id, )))
         product['store_fronts'] = self.db.get(self.queryMap["subscribed_product_store_fronts"], (id, ))
         
+        product['images'] = map(lambda i: i['image'], self.db.get(self.queryMap["product_images"], (id, )))
         mpdm_shit = self.db_mpdm.get(self.queryMap["mpdm_subscribed_product"], (product['subscribed_product_id'], ))
         if len(mpdm_shit) > 0:
           mpdm_shit = mpdm_shit[0]
@@ -226,7 +227,7 @@ class ProductsShaper(object):
       subscribed_ids = map(lambda rec: rec['grouped_id'], self.db.get(self.queryMap["subscribed_ids"], (id, )))
       product['subscriptions'] = self.subscribedProducts(subscribed_ids)
 
-      product['images'] = [] if product['images'] is None else product['images'].split(',') 
+      product['images'] = map(lambda i: i['image'], self.db.get(self.queryMap["product_images"], (id, )))
       product['min_price'] = min(map(lambda sub: sub['min_price'], product['subscriptions'])) if(len(product['subscriptions'])>0) else None
       product.pop('subscribed_product_ids', None)
       

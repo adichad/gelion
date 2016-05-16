@@ -48,8 +48,7 @@ queryMap = {
                  pd.key_feature,
                  AVG(r.rating) AS avg_rating, 
                  COUNT(r.review_id) AS review_count,
-                 MAX(r.date_modified) AS max_review_modified_dt,
-                 GROUP_CONCAT(DISTINCT pi.image ORDER BY pi.sort_order ASC, pi.image ASC) as images
+                 MAX(r.date_modified) AS max_review_modified_dt
             FROM oc_product p
  LEFT OUTER JOIN oc_product_description pd
               ON p.product_id = pd.product_id
@@ -58,8 +57,6 @@ queryMap = {
              AND r.status = 1
  LEFT OUTER JOIN oc_stock_status ss
               ON ss.stock_status_id = p.stock_status_id
- LEFT OUTER JOIN oc_product_image pi
-              ON p.product_id = pi.product_id
  LEFT OUTER JOIN oc_product_grouped_type pgt
               ON p.product_id = pgt.product_id
            WHERE p.product_id in (%s)
@@ -67,6 +64,13 @@ queryMap = {
              AND p.model = 'grouped'
     --       AND cd.language_id = 1
         GROUP BY p.product_id
+  """,
+
+  "product_images": """
+          SELECT distinct image
+            FROM oc_product_image
+           WHERE product_id = %s
+        ORDER BY sort_order ASC, image ASC 
   """,
 
   "subscribed_ids": """
@@ -174,7 +178,6 @@ queryMap = {
                  c.iso_code_3 as seller_country_code_iso_3,
                  z.name as seller_zone,
                  z.code as seller_zone_code,
-                 GROUP_CONCAT(DISTINCT pi.image ORDER BY pi.sort_order ASC, pi.image ASC) as images,
                  count(distinct op.order_id) as order_count,
                  sum(op.quantity) as order_quantity,
                  sum(op.price) as order_gsv,
@@ -211,8 +214,6 @@ queryMap = {
                                AND oi.date_added > DATE_SUB(NOW(), INTERVAL 2 MONTH)
                              WHERE opi.product_id in (%s)) op
               ON p.product_id = op.product_id
-  LEFT OUTER JOIN oc_product_image pi
-              ON p.product_id = pi.product_id
            WHERE p.product_id in (%s)
         GROUP BY pg.product_grouped_id
   """,
