@@ -42,11 +42,14 @@ cfg = Config(file(config_file))[env]
 db_target = MySQLDB(cfg['db']['management'])
 
 try:
+  logger.info("initiating app")
   app = Flask(__name__)
+  logger.info("initiated app")
 
   @app.route('/reindex/grocery/<int:variant_id>', methods=['POST', 'GET'])
   def reindex_grocery(variant_id):
     try:
+      logger.info("received: %s"%variant_id)
       result = db_target.get("select variant_id, source_log_id, target_log_id, timestamp, bucket, last_error from grocery_status where variant_id=%s limit 1"%variant_id)
       if len(result)>0:
         db_target.put("update grocery_status set target_log_id = 0 where variant_id=%s limit 1"%variant_id)
@@ -62,12 +65,16 @@ try:
 
 
   if __name__ == '__main__':
+    
+    logger.info("running app")
     app.run(host='0.0.0.0', port=9998)
+    logger.info("app running")
 
 except:
   logger.error("exception: %s"%str(sys.exc_info()))
   raise 
 finally:
+  logger.info("exiting app")
   os.unlink(pidfile)
   db_target.close()
 

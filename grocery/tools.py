@@ -15,6 +15,7 @@ from queries import queryMap
 from random import randint
 import logging
 import time
+import statistics
 
 logger = logging.getLogger('etl_grocery')
 
@@ -261,9 +262,11 @@ class GroceryShaper(object):
       grocery['category_l3'] = filter(lambda c: c['level'] == 3 and c['isnav'] == 1, grocery['category_hierarchy'])
       grocery['category_l4'] = filter(lambda c: c['level'] == 4 and c['isnav'] == 1, grocery['category_hierarchy'])
       grocery['category_l5'] = filter(lambda c: c['level'] == 5 and c['isnav'] == 1, grocery['category_hierarchy'])
-      grocery['items'] = self.db.get(self.queryMap["grocery_item"] % tuple([str(grocery['variant_id'])]))
       grocery['variant_title_head'] = filter(lambda y: len(y)>0, map(lambda x: x.strip(), grocery['variant_title'].split("+", 1)))
       grocery['variant_title_head'] = grocery['variant_title_head'][0]  # if len(grocery['variant_title_head']) == 1 else ''
+      grocery['items'] = self.db.get(self.queryMap["grocery_item"] % tuple([str(grocery['variant_id'])]))
+      grocery['median_customer_price_current'] = statistics.median(map(lambda i: i['customer_price'], grocery['items'])) if len(grocery['items']) > 0 else 0
+      grocery['median_display_price_current'] = statistics.median(map(lambda i: i['display_price'], grocery['items'])) if len(grocery['items']) > 0 else 0
       for item in grocery['items']:
         item['postal_codes'] = filter(lambda p: p !="", map(lambda p: p.strip(), (item['postal_codes'] or "").split(';')))
         item['areas'] = map(lambda a: int(a), filter(lambda p: p !="", map(lambda p: p.strip(), (item['areas'] or "").split(','))))

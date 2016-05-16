@@ -113,6 +113,7 @@ OPTION (maxrecursion 0)
                 ,imvpla.VendorId as pla_vendor_id
                 ,imvpla.Status as pla_status
                 ,i.update_date as modified_dt
+                ,ilc.maxqty as max_quantity
                 ,l.status as login_status
                 ,mz.Id as zone_id
                 ,mz.ZonalCode as zone_code
@@ -149,6 +150,8 @@ OPTION (maxrecursion 0)
  LEFT OUTER JOIN mstCart c
               ON c.ref_itemId = i.item_id
              AND c.AddedOn > DATEADD(month, -2, GETDATE())
+ LEFT OUTER JOIN M_ItemsLevelCapping ilc
+              ON i.item_id = ilc.item_id
            WHERE i.ref_product_id in (%s)
         GROUP BY i.item_id
                 ,i.ItemCode
@@ -175,6 +178,7 @@ OPTION (maxrecursion 0)
                 ,(imvpla.customer_price - (case when i.BillingPrice < i.cost then i.BillingPrice else i.cost end))
                 ,CAST(CAST(CASE WHEN imvpla.display_price > 0 THEN ((imvpla.display_price - imvpla.customer_price) * 100 / imvpla.display_price) ELSE 0 END AS DECIMAL(8,1)) AS FLOAT)
                 ,i.update_date
+                ,ilc.maxqty
                 ,l.status
                 ,mz.Id
                 ,mz.ZonalCode
