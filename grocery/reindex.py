@@ -1,7 +1,7 @@
 from flask import Flask, Response, request
 import json
 from config import Config
-from tools import MSSQLDB, MySQLDB, Encoder
+from tools import MSSQLDB, MySQLDB, Encoder, GroceryShaper
 from queries import queryMap
 import logging
 import logging.handlers
@@ -39,12 +39,16 @@ if os.path.isfile(pidfile):
 
 file(pidfile, 'w').write(pid)
 cfg = Config(file(config_file))[env]
+db_source = MSSQLDB(cfg['db']['source'])
 db_target = MySQLDB(cfg['db']['management'])
+url = cfg['mandelbrot']['url']
 
 try:
   logger.info("initiating app")
   app = Flask(__name__)
   logger.info("initiated app")
+
+  shaper = GroceryShaper(db_source, queryMap)
 
   @app.route('/reindex/grocery/<int:variant_id>', methods=['POST', 'GET'])
   def reindex_grocery(variant_id):
@@ -53,7 +57,7 @@ try:
       result = db_target.get("select variant_id, source_log_id, target_log_id, timestamp, bucket, last_error from grocery_status where variant_id=%s limit 1"%variant_id)
       if len(result)>0:
         db_target.put("update grocery_status set target_log_id = 0 where variant_id=%s limit 1"%variant_id)
-        rv = {"variant_id": variant_id, "previous-status": result[0], "reindex-scheduled": True, "mandelbrot-url": "http://mandelbrot-30.production.askmebazaar.com:9999/get/grocery/%s"%variant_id}
+        rv = {"variant_id": variant_id, "current-shape": shaper.shape([variant_id]), "previous-status": result[0], "reindex-scheduled": True, "mandelbrot-url": "http://mandelbrot-30.production.askmebazaar.com:9999/get/grocery/%s"%variant_id}
       else:
         rv = {"variant_id": variant_id, "reindexed": False, "reason": "not found"}
     except:

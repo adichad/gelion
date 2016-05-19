@@ -271,6 +271,7 @@ class GroceryShaper(object):
         item['postal_codes'] = filter(lambda p: p !="", map(lambda p: p.strip(), (item['postal_codes'] or "").split(';')))
         item['areas'] = map(lambda a: int(a), filter(lambda p: p !="", map(lambda p: p.strip(), (item['areas'] or "").split(','))))
         item['delivery_days'] = map(lambda a: int(a), filter(lambda p: p !="", map(lambda p: p.strip(), (item['delivery_days'] or "").split(','))))
+        item['delivery_days'] = item['delivery_days'][0] if len(item['delivery_days']) > 0 else 0
         item['storefronts'] = self.db.get(self.queryMap["grocery_storefront"] % tuple([str(item['id'])]))
     # logger.info("groceries: "+json.dumps(groceries, cls=Encoder, indent=2)) 
     return groceries
