@@ -18,6 +18,8 @@ queryMap = {
                 ,b.name AS brand_name
                 ,b.brand_code AS brand_code
                 ,b.status AS brand_status
+                ,p.brand as brand_id
+                ,cast ((1000001 - coalesce(mbp.priority, 1000001)) as FLOAT) as brand_priority
             FROM Variant v
       INNER JOIN Ref_Product_Variant rpv
               ON v.variant_id = rpv.ref_m_variant_id
@@ -25,6 +27,11 @@ queryMap = {
               ON rpv.ref_m_product_id = p.product_id
  LEFT OUTER JOIN Brands b
               ON p.brand = b.brands_id
+ LEFT OUTER JOIN m_brandpriority mbp
+              ON p.brand = mbp.brandid
+             AND mbp.categoryid IS NULL
+             AND mbp.zoneid IS NULL
+             AND mbp.areaid IS NULL
            WHERE v.variant_id in (%s)
   """,
   
@@ -71,9 +78,28 @@ AS
               ON ch.parent_id = mc.category_id
              AND mc.status = 1
 )
-SELECT id, name, parent_id, status, parent_name, isnav, level
-  FROM category_hierarchy ch
-OPTION (maxrecursion 0)
+          SELECT ch.id
+                ,name
+                ,parent_id
+                ,status
+                ,parent_name
+                ,isnav
+                ,level
+                ,CAST((1000001 - COALESCE(mbp1.priority, 1000001)) AS FLOAT) as category_priority
+                ,CAST((1000001 - COALESCE(mbp2.priority, 1000001)) AS FLOAT) as category_brand_priority
+            FROM category_hierarchy ch
+ LEFT OUTER JOIN m_brandpriority mbp1
+              ON mbp1.categoryid = ch.id
+             AND mbp1.brandid is null
+             AND mbp1.zoneid is null
+             AND mbp1.areaid is null
+ LEFT OUTER JOIN m_brandpriority mbp2
+              ON mbp2.categoryid = ch.id
+             AND mbp2.brandid = %s
+             AND mbp2.zoneid is null
+             AND mbp2.areaid is null
+        ORDER BY level ASC
+          OPTION (maxrecursion 0)
   """,
 
   "grocery_media": """

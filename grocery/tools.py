@@ -16,6 +16,7 @@ from random import randint
 import logging
 import time
 import statistics
+from decimal import Decimal
 
 logger = logging.getLogger('etl_grocery')
 
@@ -256,7 +257,13 @@ class GroceryShaper(object):
     for grocery in groceries:
       grocery['media'] = self.db.get(self.queryMap["grocery_media"] % tuple([str(grocery['variant_id'])]))
       grocery['categories'] = self.db.get(self.queryMap["grocery_category"] % tuple([str(grocery['product_id'])]))
-      grocery['category_hierarchy'] = self.db.get(self.queryMap["grocery_category_hierarchy"] % tuple([str(grocery['product_id'])]))
+      grocery['category_hierarchy'] = self.db.get(self.queryMap["grocery_category_hierarchy"] % tuple([str(grocery['product_id']), str(grocery['brand_id'])]))
+      for level in [2, 3, 4, 5]:
+        for category in filter(lambda c: c['level'] == level, grocery['category_hierarchy']):
+          parent_category = filter(lambda c: c['id'] == category['parent_id'], grocery['category_hierarchy'])
+          parent_boost = float(parent_category[0]['category_brand_priority'])/2.0 if len(parent_category) > 0 else 0.0
+          category['category_brand_priority'] = float(category['category_brand_priority']) + parent_boost
+
       grocery['category_l1'] = filter(lambda c: c['level'] == 1 and c['isnav'] == 1, grocery['category_hierarchy'])
       grocery['category_l2'] = filter(lambda c: c['level'] == 2 and c['isnav'] == 1, grocery['category_hierarchy'])
       grocery['category_l3'] = filter(lambda c: c['level'] == 3 and c['isnav'] == 1, grocery['category_hierarchy'])
@@ -265,8 +272,9 @@ class GroceryShaper(object):
       grocery['variant_title_head'] = filter(lambda y: len(y)>0, map(lambda x: x.strip(), grocery['variant_title'].split("+", 1)))
       grocery['variant_title_head'] = grocery['variant_title_head'][0]  # if len(grocery['variant_title_head']) == 1 else ''
       grocery['items'] = self.db.get(self.queryMap["grocery_item"] % tuple([str(grocery['variant_id'])]))
-      grocery['median_customer_price_current'] = statistics.median(map(lambda i: i['customer_price'], grocery['items'])) if len(grocery['items']) > 0 else 0
-      grocery['median_display_price_current'] = statistics.median(map(lambda i: i['display_price'], grocery['items'])) if len(grocery['items']) > 0 else 0
+      grocery['default_customer_price'] = statistics.median(map(lambda i: i['customer_price'], grocery['items'])) if len(grocery['items']) > 0 else 0.0
+      grocery['default_display_price'] = max(map(lambda i: i['display_price'], grocery['items'])) if len(grocery['items']) > 0 else 0.0
+      grocery['default_discount_percent'] = float(grocery['default_display_price'] - grocery['default_customer_price'])*100.0/float(grocery['default_display_price']) if grocery['default_display_price'] > 0 else 0.0
       for item in grocery['items']:
         item['postal_codes'] = filter(lambda p: p !="", map(lambda p: p.strip(), (item['postal_codes'] or "").split(';')))
         item['areas'] = map(lambda a: int(a), filter(lambda p: p !="", map(lambda p: p.strip(), (item['areas'] or "").split(','))))
