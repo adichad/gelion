@@ -84,12 +84,15 @@ queryMap = {
   """,
 
   "product_categories": """
-          SELECT cd.*, c.parent_id, c.image, c.sort_order, c.top, c.status, c.column
+          SELECT cd.*, c.parent_id, c.image, c.sort_order, c.top, c.status, c.column, cast(coalesce(bs.value, '0') as signed integer) as boost
             FROM oc_product_to_category ptc
       INNER JOIN oc_category c
               ON ptc.category_id = c.category_id
       INNER JOIN oc_category_description cd
               ON c.category_id = cd.category_id
+ LEFT OUTER JOIN oc_boost_score bs
+              ON c.category_id = cast(bs.field as signed int) 
+             AND bs.type = 'categoryBoosts'
            WHERE ptc.product_id = %s
            LIMIT 100
   """,
@@ -101,10 +104,13 @@ queryMap = {
   """,
 
   "categories": """
-          SELECT cd.*, c.parent_id, c.image, c.sort_order, c.top, c.status, c.column
+          SELECT cd.*, c.parent_id, c.image, c.sort_order, c.top, c.status, c.column, cast(coalesce(bs.value, '0') as signed integer) as boost
             FROM oc_category c
       INNER JOIN oc_category_description cd
               ON c.category_id = cd.category_id
+ LEFT OUTER JOIN oc_boost_score bs
+              ON c.category_id = cast(bs.field as signed int) 
+             AND bs.type = 'categoryBoosts'
            WHERE c.category_id in (%s)
   """,
 
@@ -184,8 +190,8 @@ queryMap = {
                  sum(op.discount) as order_discount_amount,
                  sum(op.lpoints_earned) as order_loyalty_earned,
                  max(op.date_added) as order_last_dt,
-                 avg(op.discount_pct) as order_discount_pct_avg
-                 
+                 avg(op.discount_pct) as order_discount_pct_avg,
+                 cast(coalesce(bs.value, '0') as signed integer) as boost
             FROM oc_product p
       INNER JOIN oc_product_grouped pg
               ON p.product_id = pg.grouped_id
@@ -214,10 +220,18 @@ queryMap = {
                                AND oi.date_added > DATE_SUB(NOW(), INTERVAL 2 MONTH)
                              WHERE opi.product_id in (%s)) op
               ON p.product_id = op.product_id
+ LEFT OUTER JOIN oc_boost_score bs
+              ON pg.grouped_id = cast(bs.field as signed int)
+             AND bs.type = 'productBoosts'
            WHERE p.product_id in (%s)
         GROUP BY pg.product_grouped_id
   """,
 
+  "settings": """
+          SELECT value
+            FROM oc_setting
+           WHERE `key` = 'config_cod_sellers'
+  """,
 
   "mpdm_subscribed_product": """
           SELECT coalesce(sc.shipping_charges, sp.subscribe_shipping_charge) as shipping_charge,

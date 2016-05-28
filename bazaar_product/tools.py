@@ -12,6 +12,7 @@ from queries import queryMap
 from random import randint
 import logging
 import time
+import phpserialize
 
 logger = logging.getLogger('etl_product')
 
@@ -135,7 +136,7 @@ class ProductsShaper(object):
     return reshaped
 
 
-  def subscribedProducts(self, ids):
+  def subscribedProducts(self, ids, sellers = []):
     products = []
     if len(ids) > 0:
       ids_list = ','.join(map(lambda idi: str(idi), ids))
@@ -145,10 +146,9 @@ class ProductsShaper(object):
 
       for product in products:
         id = product['product_id']
-
         product['options'] = self.reshapeOptions(self.db.get(self.queryMap["subscribed_product_options"], (id, )))
         product['store_fronts'] = self.db.get(self.queryMap["subscribed_product_store_fronts"], (id, ))
-        
+        product['store_fronts_count'] = len(product['store_fronts'])
         product['images'] = map(lambda i: i['image'], self.db.get(self.queryMap["product_images"], (id, )))
         mpdm_shit = self.db_mpdm.get(self.queryMap["mpdm_subscribed_product"], (product['subscribed_product_id'], ))
         if len(mpdm_shit) > 0:
@@ -157,6 +157,8 @@ class ProductsShaper(object):
           product['transfer_price'] = mpdm_shit['transfer_price']
           product['is_cod_apriori'] = True if mpdm_shit['is_cod_apriori'] > 0 else False
         
+        product['order_margin'] = (product['order_gsv']/product['order_quantity']) - product['transfer_price']
+
         prices = self.db.get(self.queryMap["subscribed_special_price"], (id, ))
 
         product['flash_sales'] = []
@@ -203,30 +205,62 @@ class ProductsShaper(object):
         product['min_price'] = min(product['flash_sale_price'] or 1000000000000.0, product['bazaar_price'] or 1000000000000.0, product['selling_price'] or 1000000000000.0, product['price'])
         product['is_ndd'] = 1 if (product['seller_name'] or "").startswith('NDD ') else 0
         product['ndd_city'] = product['seller_name'][4:] if product['is_ndd'] else None
-
+        product['is_cod'] = True if product['min_price'] < 12000.0 and product['seller_id'] not in sellers else False
     return products
 
+  def level(self, category, parent_categories):
+    parents = filter(lambda p: p['id'] == category['parent_id'], parent_categories)
+    if len(parents) == 0:
+      category['level'] = 1
+    else:
+      parent = parents[0]
+      if 'level' not in parent:
+        self.level(parent, parent_categories)
+      category['level'] = parent['level']+1
+
+  def levelCategories(self, categories = [], parent_categories = []):
+    for category in categories:
+      level(category, parent_categories)
 
   def shape(self, ids = []):
     format_strings = ','.join(['%s'] * len(ids))
     logger.debug(self.queryMap["base_product"] % (format_strings)% tuple(ids))
     products = self.db.get(self.queryMap["base_product"] % (format_strings), tuple(ids))
+    settings = map(lambda e: phpserialize.loads(e['value']), self.db.get(self.queryMap["settings"]))
+    sellers = map(lambda s: int(s), [seller for sublist in settings for seller in sublist])
     logger.debug("products: "+json.dumps(products, cls=Encoder, indent=2)) 
     for product in products:
       id = product['product_id']
       product['categories'] = self.db.get(self.queryMap["product_categories"], (id, )) #TOASK: Category assigment is non-mandatory? 1165
       product['parent_categories'] = self.ancestorCategories(map(lambda cat: cat['category_id'], product['categories']), product)
+      self.levelCategories(product['categories'], product['parent_categories'])
+      all_cats = dict((v['id'], v) for v in product['categories'] + product['parent_categories']).values()
+      product['categories_l1'] = filter(lambda c: c['level'] == 1, all_cats)
+      product['categories_l2'] = filter(lambda c: c['level'] == 2, all_cats)
+      product['categories_l3'] = filter(lambda c: c['level'] == 3, all_cats)
+      product['categories_l4'] = filter(lambda c: c['level'] == 4, all_cats)
+      product['categories_l5'] = filter(lambda c: c['level'] == 5, all_cats)
+      product['categories_l6'] = filter(lambda c: c['level'] == 6, all_cats)
+      product['categories_l7'] = filter(lambda c: c['level'] == 7, all_cats)
       product['options'] = self.reshapeOptions(self.db.get(self.queryMap["base_product_options"], (id, )))
       product['attributes'] = self.db.get(self.queryMap["base_product_attributes"], (id, ))
       product['attributes_value'] = []
       for attribute in product['attributes']:
-        if attribute['name'].lower().startswith('filter'):
+        if attribute['name'].startswith('Filter'):
           product['attributes_value'].append(attribute['value'])
       product['stores'] = self.db.get(self.queryMap["base_product_stores"], (id, ))
       product['reviews'] = self.db.get(self.queryMap["base_product_reviews"], (id, ))
       subscribed_ids = map(lambda rec: rec['grouped_id'], self.db.get(self.queryMap["subscribed_ids"], (id, )))
-      product['subscriptions'] = self.subscribedProducts(subscribed_ids)
+      product['subscriptions'] = self.subscribedProducts(subscribed_ids, sellers)
 
+      product['order_count'] = sum(map(lambda s: s['order_count'], product['subscriptions']))
+      product['order_quantity'] = sum(map(lambda s: s['order_quantity'], product['subscriptions']))
+      product['order_gsv'] = sum(map(lambda s: s['order_gsv'], product['subscriptions']))
+      product['order_loyalty_earned'] = sum(map(lambda s: s['order_loyalty_earned'], product['subscriptions']))
+      product['order_last_dt'] = max(map(lambda s: s['order_last_dt'], product['subscriptions']))
+      product['order_discount_pct_avg'] = max(map(lambda s: s['order_discount_pct_avg'], product['subscriptions']))
+      product['order_margin'] = max(map(lambda s: s['order_margin'], product['subscriptions']))
+      product['store_fronts_count'] = max(map(lambda s: s['store_fronts_count'], product['subscriptions']))
       product['images'] = map(lambda i: i['image'], self.db.get(self.queryMap["product_images"], (id, )))
       product['min_price'] = min(map(lambda sub: sub['min_price'], product['subscriptions'])) if(len(product['subscriptions'])>0) else None
       product.pop('subscribed_product_ids', None)
