@@ -1,4 +1,5 @@
 
+import traceback
 from config import Config
 import json
 from tools import MySQLDB, ProductsShaper, MandelbrotPipe
@@ -84,6 +85,7 @@ if __name__ == '__main__':
         time.sleep(10)
       except:
         logger.error("exception: %s"%str(sys.exc_info()))
+        traceback.print_exc()
   except:
     logger.error("exiting with exception: %s"%str(sys.exc_info()))
     raise

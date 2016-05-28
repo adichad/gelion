@@ -157,7 +157,7 @@ class ProductsShaper(object):
           product['transfer_price'] = mpdm_shit['transfer_price']
           product['is_cod_apriori'] = True if mpdm_shit['is_cod_apriori'] > 0 else False
         
-        product['order_margin'] = (product['order_gsv']/product['order_quantity']) - product['transfer_price']
+        product['order_margin'] = ((product['order_gsv']/product['order_quantity']) - product['transfer_price']) if product['order_quantity'] > 0 and product['order_gsv'] > 0 else 0
 
         prices = self.db.get(self.queryMap["subscribed_special_price"], (id, ))
 
@@ -209,7 +209,7 @@ class ProductsShaper(object):
     return products
 
   def level(self, category, parent_categories):
-    parents = filter(lambda p: p['id'] == category['parent_id'], parent_categories)
+    parents = filter(lambda p: p['category_id'] == category['parent_id'], parent_categories)
     if len(parents) == 0:
       category['level'] = 1
     else:
@@ -220,7 +220,7 @@ class ProductsShaper(object):
 
   def levelCategories(self, categories = [], parent_categories = []):
     for category in categories:
-      level(category, parent_categories)
+      self.level(category, parent_categories)
 
   def shape(self, ids = []):
     format_strings = ','.join(['%s'] * len(ids))
@@ -234,7 +234,7 @@ class ProductsShaper(object):
       product['categories'] = self.db.get(self.queryMap["product_categories"], (id, )) #TOASK: Category assigment is non-mandatory? 1165
       product['parent_categories'] = self.ancestorCategories(map(lambda cat: cat['category_id'], product['categories']), product)
       self.levelCategories(product['categories'], product['parent_categories'])
-      all_cats = dict((v['id'], v) for v in product['categories'] + product['parent_categories']).values()
+      all_cats = dict((v['category_id'], v) for v in product['categories'] + product['parent_categories']).values()
       product['categories_l1'] = filter(lambda c: c['level'] == 1, all_cats)
       product['categories_l2'] = filter(lambda c: c['level'] == 2, all_cats)
       product['categories_l3'] = filter(lambda c: c['level'] == 3, all_cats)
@@ -254,14 +254,15 @@ class ProductsShaper(object):
       subscribed_ids = map(lambda rec: rec['grouped_id'], self.db.get(self.queryMap["subscribed_ids"], (id, )))
       product['subscriptions'] = self.subscribedProducts(subscribed_ids, sellers)
 
-      product['order_count'] = sum(map(lambda s: s['order_count'], product['subscriptions']))
-      product['order_quantity'] = sum(map(lambda s: s['order_quantity'], product['subscriptions']))
-      product['order_gsv'] = sum(map(lambda s: s['order_gsv'], product['subscriptions']))
-      product['order_loyalty_earned'] = sum(map(lambda s: s['order_loyalty_earned'], product['subscriptions']))
-      product['order_last_dt'] = max(map(lambda s: s['order_last_dt'], product['subscriptions']))
-      product['order_discount_pct_avg'] = max(map(lambda s: s['order_discount_pct_avg'], product['subscriptions']))
-      product['order_margin'] = max(map(lambda s: s['order_margin'], product['subscriptions']))
-      product['store_fronts_count'] = max(map(lambda s: s['store_fronts_count'], product['subscriptions']))
+      product['order_count'] = sum(map(lambda s: s['order_count'], product['subscriptions'])) if len(product['subscriptions']) > 0 else 0.0
+      product['order_quantity'] = sum(map(lambda s: s['order_quantity'], product['subscriptions'])) if len(product['subscriptions']) > 0 else 0.0
+      product['order_gsv'] = sum(map(lambda s: s['order_gsv'], product['subscriptions'])) if len(product['subscriptions']) > 0 else 0.0
+      product['order_loyalty_earned'] = sum(map(lambda s: s['order_loyalty_earned'], product['subscriptions'])) if len(product['subscriptions']) > 0 else 0
+      order_dates = filter(lambda d: d is not None, map(lambda s: s['order_last_dt'], product['subscriptions']))
+      product['order_last_dt'] = max(order_dates) if len(order_dates) > 0 else None
+      product['order_discount_pct_avg'] = max(map(lambda s: s['order_discount_pct_avg'], product['subscriptions'])) if len(product['subscriptions']) > 0 else 0.0
+      product['order_margin'] = max(map(lambda s: s['order_margin'], product['subscriptions'])) if len(product['subscriptions']) > 0 else 0.0
+      product['store_fronts_count'] = max(map(lambda s: s['store_fronts_count'], product['subscriptions'])) if len(product['subscriptions']) > 0 else 0.0
       product['images'] = map(lambda i: i['image'], self.db.get(self.queryMap["product_images"], (id, )))
       product['min_price'] = min(map(lambda sub: sub['min_price'], product['subscriptions'])) if(len(product['subscriptions'])>0) else None
       product.pop('subscribed_product_ids', None)

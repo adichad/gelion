@@ -185,12 +185,12 @@ queryMap = {
                  z.name as seller_zone,
                  z.code as seller_zone_code,
                  count(distinct op.order_id) as order_count,
-                 sum(op.quantity) as order_quantity,
-                 sum(op.price) as order_gsv,
-                 sum(op.discount) as order_discount_amount,
-                 sum(op.lpoints_earned) as order_loyalty_earned,
+                 coalesce(sum(op.quantity), 0) as order_quantity,
+                 coalesce(sum(op.price), 0) as order_gsv,
+                 coalesce(sum(op.discount), 0) as order_discount_amount,
+                 coalesce(sum(op.lpoints_earned), 0) as order_loyalty_earned,
                  max(op.date_added) as order_last_dt,
-                 avg(op.discount_pct) as order_discount_pct_avg,
+                 avg(coalesce(op.discount_pct, 0)) as order_discount_pct_avg,
                  cast(coalesce(bs.value, '0') as signed integer) as boost
             FROM oc_product p
       INNER JOIN oc_product_grouped pg
@@ -217,7 +217,7 @@ queryMap = {
                               FROM oc_order_product opi
                         INNER JOIN oc_order oi
                                 ON opi.order_id = oi.order_id
-                               AND oi.date_added > DATE_SUB(NOW(), INTERVAL 2 MONTH)
+                               AND oi.date_added > DATE_SUB(NOW(), INTERVAL 1 WEEK)
                              WHERE opi.product_id in (%s)) op
               ON p.product_id = op.product_id
  LEFT OUTER JOIN oc_boost_score bs
@@ -231,6 +231,7 @@ queryMap = {
           SELECT value
             FROM oc_setting
            WHERE `key` = 'config_cod_sellers'
+             AND trim(coalesce(`value`, '')) <> ''
   """,
 
   "mpdm_subscribed_product": """
