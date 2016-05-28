@@ -205,7 +205,7 @@ class ProductsShaper(object):
         product['min_price'] = min(product['flash_sale_price'] or 1000000000000.0, product['bazaar_price'] or 1000000000000.0, product['selling_price'] or 1000000000000.0, product['price'])
         product['is_ndd'] = 1 if (product['seller_name'] or "").startswith('NDD ') else 0
         product['ndd_city'] = product['seller_name'][4:] if product['is_ndd'] else None
-        product['is_cod'] = True if product['min_price'] < 12000.0 and product['seller_id'] not in sellers else False
+        product['is_cod'] = True if product['min_price'] < 12000.0 and product['crm_seller_id'] not in sellers else False
     return products
 
   def level(self, category, parent_categories):
@@ -242,6 +242,7 @@ class ProductsShaper(object):
       product['categories_l5'] = filter(lambda c: c['level'] == 5, all_cats)
       product['categories_l6'] = filter(lambda c: c['level'] == 6, all_cats)
       product['categories_l7'] = filter(lambda c: c['level'] == 7, all_cats)
+      product['categories_nested'] = all_cats
       product['options'] = self.reshapeOptions(self.db.get(self.queryMap["base_product_options"], (id, )))
       product['attributes'] = self.db.get(self.queryMap["base_product_attributes"], (id, ))
       product['attributes_value'] = []
