@@ -91,6 +91,7 @@ if __name__ == '__main__':
     raise
   finally:
     os.unlink(pidfile)
+    logger.info("removed: "+pidfile)
     db_source.close()
     db_mpdm.close()
     db_target.close()

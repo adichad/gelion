@@ -156,8 +156,7 @@ class ProductsShaper(object):
           product['shipping_charge'] = mpdm_shit['shipping_charge']
           product['transfer_price'] = mpdm_shit['transfer_price']
           product['is_cod_apriori'] = True if mpdm_shit['is_cod_apriori'] > 0 else False
-        
-        product['order_margin'] = ((product['order_gsv']/product['order_quantity']) - product['transfer_price']) if product['order_quantity'] > 0 and product['order_gsv'] > 0 else 0
+          product['order_margin'] = ((product['order_gsv']/product['order_quantity']) - product['transfer_price']) if product['order_quantity'] > 0 and product['order_gsv'] > 0 and product['transfer_price'] > 0 else 0
 
         prices = self.db.get(self.queryMap["subscribed_special_price"], (id, ))
 
@@ -205,7 +204,7 @@ class ProductsShaper(object):
         product['min_price'] = min(product['flash_sale_price'] or 1000000000000.0, product['bazaar_price'] or 1000000000000.0, product['selling_price'] or 1000000000000.0, product['price'])
         product['is_ndd'] = 1 if (product['seller_name'] or "").startswith('NDD ') else 0
         product['ndd_city'] = product['seller_name'][4:] if product['is_ndd'] else None
-        product['is_cod'] = True if product['min_price'] < 12000.0 and product['crm_seller_id'] not in sellers else False
+        product['is_cod'] = True if (int(product['min_price']) < 12000 and product['crm_seller_id'] not in sellers) else False
     return products
 
   def level(self, category, parent_categories):
@@ -261,7 +260,7 @@ class ProductsShaper(object):
       order_dates = filter(lambda d: d is not None, map(lambda s: s['order_last_dt'], product['subscriptions']))
       product['order_last_dt'] = max(order_dates) if len(order_dates) > 0 else None
       product['order_discount_pct_avg'] = max(map(lambda s: s['order_discount_pct_avg'], product['subscriptions'])) if len(product['subscriptions']) > 0 else 0.0
-      product['order_margin'] = max(map(lambda s: s['order_margin'], product['subscriptions'])) if len(product['subscriptions']) > 0 else 0.0
+      product['order_margin'] = max(map(lambda s: s['order_margin'] if 'order_margin' in s else 0, product['subscriptions'])) if len(product['subscriptions']) > 0 else 0.0
       product['store_fronts_count'] = max(map(lambda s: s['store_fronts_count'], product['subscriptions'])) if len(product['subscriptions']) > 0 else 0.0
       product['images'] = map(lambda i: i['image'], self.db.get(self.queryMap["product_images"], (id, )))
       product['min_price'] = min(map(lambda sub: sub['min_price'], product['subscriptions'])) if(len(product['subscriptions'])>0) else None
