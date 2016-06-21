@@ -1,4 +1,4 @@
-
+from HTMLParser import HTMLParser
 import json
 import decimal
 import datetime
@@ -45,7 +45,7 @@ class MySQLDB(object):
       passwd = self.config.passwd,
       db = self.config.name,
       charset = 'utf8',
-      init_command = "SET SESSION wait_timeout=60;SET NAMES UTF8;SET time_zone='+0:00';SET SESSION group_concat_max_len = 1000000; SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;",
+      init_command = "SET SESSION wait_timeout=6000;SET NAMES UTF8;SET time_zone='+0:00';SET SESSION group_concat_max_len = 1000000; SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;",
       cursorclass = MySQLdb.cursors.DictCursor)
 
   def putIdempotent(self, query, params=()):
@@ -101,13 +101,13 @@ class MySQLDB(object):
 
 class CantorishShaper(object):
   db = None
-  db_mpdm = None
   queryMap = None
+  htmlParser = None
 
-  def __init__(self, db, db_mpdm, queryMap):
+  def __init__(self, db, queryMap):
     self.db = db
-    self.db_mpdm = db_mpdm
     self.queryMap = queryMap
+    self.htmlParser = HTMLParser()
 
   def ancestorCategoryIDList(self, ids, accumulator):
     if(len(ids)>0):
@@ -116,9 +116,9 @@ class CantorishShaper(object):
       parents = self.db.get(self.queryMap["parent_categories"] % format_strings, tuple(ids))
       self.ancestorCategoryIDList(filter(lambda cat: cat > 0, map(lambda cat: cat['parent_id'], parents)), accumulator)
 
-  def ancestorCategories(self, leafids, cantorish):
+  def ancestorCategories(self, leafids, product):
     parentids = []
-    self.ancestorCategoryIDList(filter(lambda cat: cat > 0, map(lambda cat: cat['parent_id'], cantorish['categories'])), parentids)
+    self.ancestorCategoryIDList(filter(lambda cat: cat > 0, map(lambda cat: cat['parent_id'], product['categories']['assigned'])), parentids)
     parentids = list(set(parentids) - set(leafids))
 
     if len(parentids) > 0:
@@ -127,198 +127,242 @@ class CantorishShaper(object):
     else:
       return []
 
-  def reshapeOptions(self, options):
-    reshaped = []
-    options.sort(key = lambda opt: opt['name'])
-    for key, group in groupby(options, lambda x: { 'name': x['name'] , 'type': x['type'], 'sort_order': x['sort_order'], 'id': x['id']}):
-      key['values'] = map(lambda val: val['value'], group)
-      reshaped.append(key)
-    reshaped.sort(key = lambda opt: opt['sort_order'])
-    return reshaped
+  def subscribedProducts(self, id):
+    products = []
+    products = self.db.get(self.queryMap["subscribed_product"]%(id, ))
+    for product in products:
+      product['seller'] = {
+        'id': product['store_id'],
+        'code': product['store_code'],
+        'name': product['store_name'],
+        'tagline': product['tagline'],
+        'description': product['store_details'],
+        'media': [ { 'url': product['store_logo'], 'type': 'image' } ],
+        'seller': product['seller_name'],
+        'address': product['business_address'],
+        'mobiles': filter(lambda num: num!="", map(lambda n: n.strip(), (product['mobile_numbers'] or "").split(','))),
+        'telephones': filter(lambda num: num!="", map(lambda n: n.strip(), (product['telephone_numbers'] or "").split(','))),
+        'email': product['email'],
+        'chat_id': product['chat_id'],
+        'visible': product['visible'],
+        'status': product['store_status'],
+        'is_deleted': product['store_is_deleted'],
+        'is_active_valid': product['is_active_valid'],
+        'vtiger_status': product['vtiger_status'],
+        'vtiger_account_id': product['vtiger_account_id'],
+        'meta': { 'title': product['meta_title'], 'keywords': product['meta_keywords'], 'description': product['meta_description'] },
+        'customer_rating': product['customer_value'],
+        'created_dt': product['store_created_dt'],
+        'updated_dt': product['store_modified_dt'],
+        'api_key': product['store_api_key'],
+        'seller_mailer_flag': product['seller_mailer_flag'],
+        'buyer_mailer_flag': product['buyer_mailer_flag'],
+        'shipping_charge': product['store_shipping_charge']
+      }
+      product['offers'] = [ {
+        'name': 'default',
+        'discount_percent': product['default_discount_percent'],
+        'price': product['store_offer_price'],
+        'valid_from': '1970-01-01 00:00:00',
+        'valid_thru': '9999-12-31 00:00:00'
+      }, {
+        'name': 'bazaar',
+        'discount_percent': product['bazaar_discount_percent'],
+        'price': product['bazaar_price'],
+        'valid_from': product['bazaar_price_valid_from'],
+        'valid_thru': product['bazaar_price_valid_thru']
+      } ]
+      for key in ['store_id', 'store_code', 'store_name', 'tagline', 'store_details', 'store_logo', 'seller_name', 'business_address', 'mobile_numbers', 'telephone_numbers', 'email', 'chat_id', 'visible', 'store_status', 'store_is_deleted', 'is_active_valid', 'vtiger_status', 'vtiger_account_id', 'meta_title', 'meta_keywords', 'meta_description', 'customer_value', 'store_created_dt', 'store_modified_dt', 'store_api_key', 'seller_mailer_flag', 'buyer_mailer_flag', 'store_shipping_charge', 'default_discount_percent', 'bazaar_discount_percent', 'bazaar_price_valid_from', 'bazaar_price_valid_thru']:
+        product.pop(key, None)
+    return products
+
+  def isInt(self, i):
+    try:
+      int(i)
+      return True
+    except:
+      return False
+
+  def reshapeBase(self, product, is_top=True):
+    id = product['id']
+    product['name'] = self.htmlParser.unescape(product['name'] or "")
+    product['description'] = self.htmlParser.unescape(product['description'] or "")
+    product['small_description'] = self.htmlParser.unescape(product['small_description'] or "")
+
+    product['meta'] = {}
+    product['meta']['title'] = self.htmlParser.unescape(product['meta_title'] or "")
+    product['meta']['keywords'] = self.htmlParser.unescape(product['meta_keyword'] or "")
+    product['meta']['description'] = self.htmlParser.unescape(product['meta_description'] or "")
+    product.pop('meta_title', None)
+    product.pop('meta_keyword', None)
+    product.pop('meta_description', None)
+
+    product['media'] = self.db.get(self.queryMap["product_images"], (id, ))
+    if is_top:
+      product['categories'] = {}
+      product['categories']['assigned'] = self.db.get(self.queryMap["product_categories"], (id, )) 
+      product['categories']['derived'] = self.ancestorCategories(map(lambda cat: cat['id'], product['categories']['assigned']), product)
+      all_cats = dict((v['id'], v) for v in product['categories']['assigned'] + product['categories']['derived']).values()
+      for level in [0, 1, 2, 3, 4, 5, 6, 7]:
+        cats = filter(lambda c: c['level'] == level, all_cats)
+        if len(cats)>0:
+          product['categories']['l'+str(level)] = cats
+      product['categories']['all'] = all_cats
+
+    product['attributes'] = []
+    attributes = []
+    attributes.append({ 'name': 'color', 'value': product['color']})
+    attributes.append({ 'name': 'size', 'value': product['size']})
+    attributes.append({ 'name': 'brand', 'value': product['brand']})
+    attributes.append({ 'name': 'weight', 'value': product['weight']})
+    attributes.append({ 'name': 'model_name', 'value': product['model_name']})
+    attributes.append({ 'name': 'model_number', 'value': product['model_number']})
+    attributes.append({ 'name': 'key_features', 'value': product['key_features']})
+    attributes.append({ 'name': 'manufacturer', 'value': product['manufacturer']})
+    attributes.append({ 'name': 'video_url', 'value': product['video_url']})
+    try:
+      for key, value in json.loads(product['specifications'])['attributes'].iteritems():
+        attributes.append({ 'name': key, 'value': value })
+    except:
+      None
+    product.pop('specifications', None)
 
 
-  def subscribedCantorishs(self, ids, sellers = []):
-    cantorishs = []
-    if len(ids) > 0:
-      ids_list = ','.join(map(lambda idi: str(idi), ids))
-      format_strings = ','.join(['%s'] * len(ids))
-      query = self.queryMap["subscribed_cantorish"]%(ids_list, ids_list, )
-      cantorishs = self.db.get(self.queryMap["subscribed_cantorish"]%(ids_list, ids_list, ))
+    product.pop('color', None)
+    product.pop('size', None)
+    product.pop('brand', None)
+    product.pop('weight', None)
+    product.pop('model_name', None)
+    product.pop('model_number', None)
+    product.pop('key_features', None)
+    product.pop('manufacturer', None)
+    product.pop('video_url', None)
 
-      for cantorish in cantorishs:
-        id = cantorish['cantorish_id']
-        cantorish['options'] = self.reshapeOptions(self.db.get(self.queryMap["subscribed_cantorish_options"], (id, )))
-        cantorish['store_fronts'] = self.db.get(self.queryMap["subscribed_cantorish_store_fronts"], (id, ))
-        cantorish['store_fronts_count'] = len(cantorish['store_fronts'])
-        cantorish['images'] = map(lambda i: i['image'], self.db.get(self.queryMap["cantorish_images"], (id, )))
-        mpdm_shit = self.db_mpdm.get(self.queryMap["mpdm_subscribed_cantorish"], (cantorish['subscribed_cantorish_id'], ))
-        if len(mpdm_shit) > 0:
-          mpdm_shit = mpdm_shit[0]
-          cantorish['shipping_charge'] = mpdm_shit['shipping_charge']
-          cantorish['transfer_price'] = mpdm_shit['transfer_price']
-          cantorish['is_cod_apriori'] = True if mpdm_shit['is_cod_apriori'] > 0 else False
-          cantorish['order_margin'] = ((cantorish['order_gsv']/cantorish['order_quantity']) - cantorish['transfer_price']) if cantorish['order_quantity'] > 0 and cantorish['order_gsv'] > 0 and cantorish['transfer_price'] > 0 else 0
+    if is_top:
+      product['variants'] = [{ 'id': id, 'name': product['name'], 'description': product['description'], 'small_description': product['small_description'], 'media': product['media'], 'attributes': attributes, 'subscriptions': self.subscribedProducts(id)}]
 
-        prices = self.db.get(self.queryMap["subscribed_special_price"], (id, ))
-
-        cantorish['flash_sales'] = []
-        cantorish['bazaar_prices'] = []
-        cantorish['selling_prices'] = []
-        cantorish['flash_sale_price'] = None
-        cantorish['selling_price'] = None
-        cantorish['bazaar_price'] = None
-        for price in prices:
-          if price['price'] > 0:
-            if price['ecflashsale_id']:
-              cantorish['flash_sale_id'] = price['ecflashsale_id']
-              cantorish['flash_sale_price'] = price['price']
-              cantorish['flash_sale_start_date'] = price['date_start']
-              cantorish['flash_sale_end_date'] = price['date_end']
-              flash_sale = {}
-              flash_sale['id'] = price['ecflashsale_id']
-              flash_sale['price'] = price['price']
-              flash_sale['start_date'] = price['date_start']
-              flash_sale['end_date'] = price['date_end']
-              flash_sale['priority'] = price['priority']
-              cantorish['flash_sales'].append(flash_sale) 
-            elif price['is_bazaar_price']:
-              cantorish['bazaar_price'] = price['price']
-              cantorish['bazaar_price_start_date'] = price['date_start']
-              cantorish['bazaar_price_end_date'] = price['date_end']
-              bazaar_price = {}
-              bazaar_price['price'] = price['price']
-              bazaar_price['start_date'] = price['date_start']
-              bazaar_price['end_date'] = price['date_end']
-              bazaar_price['priority'] = price['priority']
-              cantorish['bazaar_prices'].append(bazaar_price)
-            else:
-              cantorish['selling_price'] = price['price']
-              cantorish['selling_price_start_date'] = price['date_start']
-              cantorish['selling_price_end_date'] = price['date_end']
-              selling_price = {}
-              selling_price['price'] = price['price']
-              selling_price['start_date'] = price['date_start']
-              selling_price['end_date'] = price['date_end']
-              selling_price['priority'] = price['priority']
-              cantorish['selling_prices'].append(selling_price)
-             
-        cantorish['min_price'] = min(cantorish['flash_sale_price'] or 1000000000000.0, cantorish['bazaar_price'] or 1000000000000.0, cantorish['selling_price'] or 1000000000000.0, cantorish['price'])
-        cantorish['is_ndd'] = 1 if (cantorish['seller_name'] or "").startswith('NDD ') else 0
-        cantorish['ndd_city'] = cantorish['seller_name'][4:] if cantorish['is_ndd'] else None
-        cantorish['is_cod'] = True if (int(cantorish['min_price']) < 12000 and cantorish['crm_seller_id'] not in sellers) else False
-    return cantorishs
-
-  def level(self, category, parent_categories):
-    parents = filter(lambda p: p['category_id'] == category['parent_id'], parent_categories)
-    if len(parents) == 0:
-      category['level'] = 1
+      product['configurable_with'] = map(lambda i: int(i), filter(lambda i: self.isInt(i) and int(i) > 0, map(lambda c: c.strip(), product['configurable_with'].split(","))))
+      if product['is_configurable'] == 1 and len(product['configurable_with']) > 0:
+        format_strings = ','.join(['%s'] * len(product['configurable_with']))
+        variants = self.db.get(self.queryMap["base_product"] % (format_strings) % tuple(product['configurable_with']))
+        for variant in variants:
+          product['variants'].append(self.reshapeBase(variant, is_top=False))
+        common = set.intersection(*map(lambda variant: set(map(lambda a: json.dumps(a, cls=Encoder, indent=2), variant['attributes'])), variants))
+        product['attributes'] = list(map(lambda a: json.loads(a), common))
+        for variant in variants:
+          variant['attributes'] = list(map(lambda a: json.loads(a), set(map(lambda a: json.dumps(a, cls=Encoder, indent=2), variant['attributes'])) - common))
+       
+      else:
+        product['variants'][0]['attributes'] = []
+        product['attributes'] = attributes
     else:
-      parent = parents[0]
-      if 'level' not in parent:
-        self.level(parent, parent_categories)
-      category['level'] = parent['level']+1
+      product['attributes'] = attributes
+      product['subscriptions'] = self.subscribedProducts(id)
 
-  def levelCategories(self, categories = [], parent_categories = []):
-    for category in categories:
-      self.level(category, parent_categories)
+    product.pop('configurable_with', None)
+    product.pop('is_configurable', None)
+
+    return product
+
 
   def shape(self, ids = []):
     format_strings = ','.join(['%s'] * len(ids))
-    logger.debug(self.queryMap["base_cantorish"] % (format_strings)% tuple(ids))
-    cantorishs = self.db.get(self.queryMap["base_cantorish"] % (format_strings), tuple(ids))
-    settings = map(lambda e: phpserialize.loads(e['value']), self.db.get(self.queryMap["settings"]))
-    sellers = map(lambda s: int(s), [seller for sublist in settings for seller in sublist])
-    logger.debug("cantorishs: "+json.dumps(cantorishs, cls=Encoder, indent=2)) 
-    for cantorish in cantorishs:
-      id = cantorish['cantorish_id']
-      cantorish['categories'] = self.db.get(self.queryMap["cantorish_categories"], (id, )) #TOASK: Category assigment is non-mandatory? 1165
-      cantorish['parent_categories'] = self.ancestorCategories(map(lambda cat: cat['category_id'], cantorish['categories']), cantorish)
-      self.levelCategories(cantorish['categories'], cantorish['parent_categories'])
-      all_cats = dict((v['category_id'], v) for v in cantorish['categories'] + cantorish['parent_categories']).values()
-      cantorish['categories_l1'] = filter(lambda c: c['level'] == 1, all_cats)
-      cantorish['categories_l2'] = filter(lambda c: c['level'] == 2, all_cats)
-      cantorish['categories_l3'] = filter(lambda c: c['level'] == 3, all_cats)
-      cantorish['categories_l4'] = filter(lambda c: c['level'] == 4, all_cats)
-      cantorish['categories_l5'] = filter(lambda c: c['level'] == 5, all_cats)
-      cantorish['categories_l6'] = filter(lambda c: c['level'] == 6, all_cats)
-      cantorish['categories_l7'] = filter(lambda c: c['level'] == 7, all_cats)
-      cantorish['categories_nested'] = all_cats
-      cantorish['options'] = self.reshapeOptions(self.db.get(self.queryMap["base_cantorish_options"], (id, )))
-      cantorish['attributes'] = self.db.get(self.queryMap["base_cantorish_attributes"], (id, ))
-      cantorish['attributes_value'] = []
-      for attribute in cantorish['attributes']:
-        if attribute['name'].startswith('Filter'):
-          cantorish['attributes_value'].append(attribute['value'])
-      cantorish['stores'] = self.db.get(self.queryMap["base_cantorish_stores"], (id, ))
-      cantorish['reviews'] = self.db.get(self.queryMap["base_cantorish_reviews"], (id, ))
-      subscribed_ids = map(lambda rec: rec['grouped_id'], self.db.get(self.queryMap["subscribed_ids"], (id, )))
-      cantorish['subscriptions'] = self.subscribedCantorishs(subscribed_ids, sellers)
-
-      cantorish['order_count'] = sum(map(lambda s: s['order_count'], cantorish['subscriptions'])) if len(cantorish['subscriptions']) > 0 else 0.0
-      cantorish['order_quantity'] = sum(map(lambda s: s['order_quantity'], cantorish['subscriptions'])) if len(cantorish['subscriptions']) > 0 else 0.0
-      cantorish['order_gsv'] = sum(map(lambda s: s['order_gsv'], cantorish['subscriptions'])) if len(cantorish['subscriptions']) > 0 else 0.0
-      cantorish['order_loyalty_earned'] = sum(map(lambda s: s['order_loyalty_earned'], cantorish['subscriptions'])) if len(cantorish['subscriptions']) > 0 else 0
-      order_dates = filter(lambda d: d is not None, map(lambda s: s['order_last_dt'], cantorish['subscriptions']))
-      cantorish['order_last_dt'] = max(order_dates) if len(order_dates) > 0 else None
-      cantorish['order_discount_pct_avg'] = max(map(lambda s: s['order_discount_pct_avg'], cantorish['subscriptions'])) if len(cantorish['subscriptions']) > 0 else 0.0
-      cantorish['order_margin'] = max(map(lambda s: s['order_margin'] if 'order_margin' in s else 0, cantorish['subscriptions'])) if len(cantorish['subscriptions']) > 0 else 0.0
-      cantorish['store_fronts_count'] = max(map(lambda s: s['store_fronts_count'], cantorish['subscriptions'])) if len(cantorish['subscriptions']) > 0 else 0.0
-      cantorish['images'] = map(lambda i: i['image'], self.db.get(self.queryMap["cantorish_images"], (id, )))
-      cantorish['min_price'] = min(map(lambda sub: sub['min_price'], cantorish['subscriptions'])) if(len(cantorish['subscriptions'])>0) else None
-      cantorish.pop('subscribed_cantorish_ids', None)
-      
-    return cantorishs
+    logger.debug(self.queryMap["base_product"] % (format_strings)% tuple(ids))
+    products = self.db.get(self.queryMap["base_product"] % (format_strings), tuple(ids))
+    logger.debug("products: "+json.dumps(products, cls=Encoder, indent=2)) 
+    for product in products:
+      product = self.reshapeBase(product)
+    return products
 
 
 
-class CantorishDeltaUpdater(object):
+class CantorishBaseDeltaUpdater(object):
   db_source = None
   db_target = None
   queries = None
   procs = None
-  consumer = None
 
-  def __init__(self, db_source, db_target, kafka_consumer, queries, procs):
+  def __init__(self, db_source, db_target, queries, procs):
     self.db_source = db_source
     self.db_target = db_target
     self.queries = queries
     self.procs = procs
-    self.consumer = kafka_consumer
 
   def streamDelta(self, batchSize):
     start = int(round(time.time() * 1000))
 
-    topical_messages = self.consumer.poll(0)
+    idPrev = self.idPrev()
+    idCurr = self.idCurr()
+    logger.info("last processed log_id: "+str(idPrev))
+    logger.info("current max    log_id: "+str(idCurr))
+    count = 0
 
-    logger.info(json.dumps(topical_messages, cls=Encoder, indent=2))
+    cur = self.db_source.getCursor(self.queries["cantorish_base_delta_fetch"], (idPrev, idCurr, ))
+    deltaBatch = cur.fetchmany(batchSize)
+    while len(deltaBatch)>0:
+      format_strings = ','.join(['%s'] * len(deltaBatch))
+      self.db_target.put(
+        self.queries["cantorish_base_delta_merge"] % format_strings % 
+        tuple(map(lambda rec: "(%s, '%s', %s)"%(str(rec['id']), str(rec['log_id']), str(randint(0, self.procs-1))), deltaBatch))
+      )
+      count+=len(deltaBatch)
+      deltaBatch = cur.fetchmany(batchSize)
 
-#    idPrev = self.idPrev()
-#    idCurr = self.idCurr()
-#    logger.info("last processed log_id: "+str(idPrev))
-#    logger.info("current max    log_id: "+str(idCurr))
-#    count = 0
-
-#    cur = self.db_source.getCursor(self.queries["cantorish_delta_fetch"], (idPrev, idCurr, ))
-#    deltaBatch = cur.fetchmany(batchSize)
-#    while len(deltaBatch)>0:
-#      format_strings = ','.join(['%s'] * len(deltaBatch))
-#      self.db_target.put(
-#        self.queries["cantorish_delta_merge"] % format_strings % 
-#        tuple(map(lambda rec: "(%s, '%s', %s)"%(str(rec['cantorish_id']), str(rec['last_updated_dt']), str(randint(0, self.procs-1))), deltaBatch))
-#      )
-#      count+=len(deltaBatch)
-#      deltaBatch = cur.fetchmany(batchSize)
-
-#    cur.close()
+    cur.close()
     end = int(round(time.time() * 1000))
-#    self.db_target.put(self.queries["cantorish_bookmark_insert"], (idCurr, count, (end-start)))
+    self.db_target.put(self.queries["cantorish_base_bookmark_insert"], (idCurr, count, (end-start)))
 
   def idPrev(self): 
-    result = self.db_target.get(self.queries["last_target_log_id"])
+    result = self.db_target.get(self.queries["last_target_base_log_id"])
     return result[0]['log_id'] if len(result) > 0 else 0
 
   def idCurr(self):
-    result = self.db_source.get(self.queries["max_source_log_id"])
+    result = self.db_source.get(self.queries["max_source_base_log_id"])
+    return result[0]['max_id'] if len(result) > 0 else 0
+
+
+class CantorishSubscribedDeltaUpdater(object):
+  db_source = None
+  db_target = None
+  queries = None
+  procs = None
+
+  def __init__(self, db_source, db_target, queries, procs):
+    self.db_source = db_source
+    self.db_target = db_target
+    self.queries = queries
+    self.procs = procs
+
+  def streamDelta(self, batchSize):
+    start = int(round(time.time() * 1000))
+
+    idPrev = self.idPrev()
+    idCurr = self.idCurr()
+    logger.info("last processed log_id: "+str(idPrev))
+    logger.info("current max    log_id: "+str(idCurr))
+    count = 0
+
+    cur = self.db_source.getCursor(self.queries["cantorish_subscribed_delta_fetch"], (idPrev, idCurr, ))
+    deltaBatch = cur.fetchmany(batchSize)
+    while len(deltaBatch)>0:
+      format_strings = ','.join(['%s'] * len(deltaBatch))
+      self.db_target.put(
+        self.queries["cantorish_subscribed_delta_merge"] % format_strings % 
+        tuple(map(lambda rec: "(%s, '%s', %s)"%(str(rec['id']), str(rec['log_id']), str(randint(0, self.procs-1))), deltaBatch))
+      )
+      count+=len(deltaBatch)
+      deltaBatch = cur.fetchmany(batchSize)
+
+    cur.close()
+    end = int(round(time.time() * 1000))
+    self.db_target.put(self.queries["cantorish_subscribed_bookmark_insert"], (idCurr, count, (end-start)))
+
+  def idPrev(self): 
+    result = self.db_target.get(self.queries["last_target_subscribed_log_id"])
+    return result[0]['log_id'] if len(result) > 0 else 0
+
+  def idCurr(self):
+    result = self.db_source.get(self.queries["max_source_subscribed_log_id"])
     return result[0]['max_id'] if len(result) > 0 else 0
 
 
@@ -331,26 +375,26 @@ def hook_factory(*factory_args, **factory_kwargs):
     try:
       res = json.loads(result.text)
       if isinstance(res, dict):
-        successes = filter(lambda rec: rec['cantorish_id'] in map(lambda id: int(id), res['response']['successful']), factory_kwargs['delta_batch'])
-        success_ids = map(lambda rec: rec['cantorish_id'], successes)
-        failed_list = filter(lambda rec: rec['cantorish_id'] not in success_ids, factory_kwargs['delta_batch'])
-        tgt_errors = dict((int(rec['cantorish_id']), rec['error']) for rec in res['response']['failed'])
-        failures = map(lambda rec: {"cantorish_id": int(rec['cantorish_id']), "source_dt": rec['source_dt'], "error": tgt_errors[int(rec['cantorish_id'])] if int(rec['cantorish_id']) in tgt_errors else "no such grouped cantorish_id in source"}, failed_list)
+        successes = filter(lambda rec: rec['id'] in map(lambda id: int(id), res['response']['successful']), factory_kwargs['delta_batch'])
+        success_ids = map(lambda rec: rec['id'], successes)
+        failed_list = filter(lambda rec: rec['id'] not in success_ids, factory_kwargs['delta_batch'])
+        tgt_errors = dict((int(rec['id']), rec['error']) for rec in res['response']['failed'])
+        failures = map(lambda rec: {"id": int(rec['id']), "error": tgt_errors[int(rec['id'])] if int(rec['id']) in tgt_errors else "no such id in source"}, failed_list)
       else:
-        failures = map(lambda rec: {"cantorish_id": rec['cantorish_id'], "source_dt": rec['source_dt'], "error": result.text}, factory_kwargs['delta_batch'])
+        failures = map(lambda rec: {"id": rec['id'], "error": result.text}, factory_kwargs['delta_batch'])
     except Exception, e:
       logger.error("Exception: "+str(e))
       successes = []
-      failures = map(lambda rec: {"cantorish_id": rec['cantorish_id'], "source_dt": rec['source_dt'], "error": result.text}, factory_kwargs['delta_batch'])
+      failures = map(lambda rec: {"id": rec['id'], "error": result.text}, factory_kwargs['delta_batch'])
  
     db = factory_kwargs['db']
     try:
       if len(successes) > 0:
         format_strings = ','.join(['%s'] * len(successes))
-        db.put(queryMap["cantorish_success_merge"] % format_strings % tuple(map(lambda rec: "(%s, '%s', '%s')"%(str(rec['cantorish_id']), str(rec['source_dt']), str(rec['source_dt'])), successes)))
+        db.put(queryMap["product_success_merge"] % format_strings % tuple(map(lambda rec: "(%s, %s, %s, %s, %s)"%(str(rec['id']), str(rec['source_base_log_id']), str(rec['source_subscribed_log_id']), str(rec['source_base_log_id']), str(rec['source_subscribed_log_id'])), successes)))
       if len(failures) > 0:
         format_strings = ','.join(['%s'] * len(failures))
-        db.put(queryMap["cantorish_failure_merge"] % format_strings % tuple(map(lambda rec: "(%s, '%s', '%s')"%(str(rec['cantorish_id']), str(rec['source_dt']), str(rec['error'])), failures)))
+        db.put(queryMap["product_failure_merge"] % format_strings % tuple(map(lambda rec: "(%s, '%s')"%(str(rec['id']), str(rec['error'])), failures)))
     except Exception, e:
       logger.error(str(e))
     result.close()
@@ -384,23 +428,26 @@ class MandelbrotPipe(object):
       req = grequests.post(self.url, data = json.dumps(data, cls=Encoder, indent=2), hooks = {'response': [hook_factory(delta_batch=deltaBatch, db=self.db_target)]})
       return grequests.send(req, self.requestPool)
     except Exception, e:
-      failures = map(lambda rec: {"cantorish_id": rec['cantorish_id'], "source_dt": rec['source_dt'], "error": str(e)}, deltaBatch)
+      failures = map(lambda rec: {"id": rec['id'], "error": str(e)}, deltaBatch)
       format_strings = ','.join(['%s'] * len(failures))
-      self.db_target.put(queryMap["cantorish_failure_merge"] % format_strings % tuple(map(lambda rec: "(%s, '%s', '%s')"%(str(rec['cantorish_id']), str(rec['source_dt']), str(rec['error'])), failures)))
+      self.db_target.put(queryMap["product_failure_merge"] % format_strings % tuple(map(lambda rec: "(%s, '%s')"%(str(rec['id']), str(rec['error'])), failures)))
       return None
 
   def streamDelta(self, batchSize, killer):
     start = int(round(time.time() * 1000))
-    cur = self.db_target.getCursor(self.queries["cantorish_id_fetch"], (self.proc_id, self.procs, ))
+    cur = self.db_target.getCursor(self.queries["product_id_fetch"], (self.proc_id, self.procs, ))
     deltaBatch = cur.fetchmany(batchSize)
+    logger.info("batch ids: " + json.dumps(deltaBatch, cls=Encoder, indent=2))
     jobs = []
     count = 0
     while len(deltaBatch)>0 and killer.runMore:
-      ids = map(lambda rec: rec['cantorish_id'], deltaBatch)
-      logger.info("shaping cantorish_ids: "+json.dumps(ids, cls=Encoder))
-      job = self.post(self.shaper.shape(ids), deltaBatch)
-      if job is not None:
-        jobs.append(job)
+      ids = map(lambda rec: rec['id'], deltaBatch)
+      logger.info("shaping ids: "+json.dumps(ids, cls=Encoder))
+      shape = self.shaper.shape(ids)
+      logger.info(json.dumps(shape, cls=Encoder, indent=2))
+      #job = self.post(self.shaper.shape(ids), deltaBatch)
+      #if job is not None:
+      #  jobs.append(job)
       count+=len(deltaBatch)
       deltaBatch = cur.fetchmany(batchSize)
     cur.close()

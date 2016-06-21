@@ -2,7 +2,7 @@
 import traceback
 from config import Config
 import json
-from tools import MySQLDB, ProductsShaper, MandelbrotPipe
+from tools import MySQLDB, CantorishShaper, MandelbrotPipe
 from queries import queryMap
 import grequests
 import getopt, sys
@@ -14,7 +14,7 @@ import logging
 import logging.handlers
 import multiprocessing
 
-logger = logging.getLogger('etl_product')
+logger = logging.getLogger('etl_cantorish')
 logger.setLevel(logging.INFO)
 
 
@@ -56,9 +56,9 @@ if __name__ == '__main__':
       batch_size = int(v)
 
   pid = str(os.getpid())
-  pidfile = "/tmp/etl.product.%(env)s.%(proc_id)i-%(procs)i.pid"%locals()
+  pidfile = "/tmp/etl.cantorish.%(env)s.%(proc_id)i-%(procs)i.pid"%locals()
 
-  LOG_FILENAME = "/tmp/etl.product.%(env)s.%(proc_id)i-%(procs)i.log"%locals()
+  LOG_FILENAME = "/tmp/etl.cantorish.%(env)s.%(proc_id)i-%(procs)i.log"%locals()
   handler = logging.handlers.RotatingFileHandler(LOG_FILENAME, maxBytes=100000000, backupCount=5)
   handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
   logger.addHandler(handler)
@@ -74,10 +74,9 @@ if __name__ == '__main__':
     cfg = Config(file(config_file))[env]
 
     db_source = MySQLDB(cfg['db']['source'])
-    db_mpdm = MySQLDB(cfg['db']['mpdm'])
     db_target = MySQLDB(cfg['db']['management'])
     url = cfg['mandelbrot']['url']
-    shaper = ProductsShaper(db_source, db_mpdm, queryMap)
+    shaper = CantorishShaper(db_source, queryMap)
     pipe = MandelbrotPipe(db_source, db_target, queryMap, proc_id, procs, shaper, url, grequests.Pool(threads))
     while killer.runMore:
       try:
@@ -93,7 +92,6 @@ if __name__ == '__main__':
     os.unlink(pidfile)
     logger.info("removed: "+pidfile)
     db_source.close()
-    db_mpdm.close()
     db_target.close()
     
 

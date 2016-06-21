@@ -1,13 +1,12 @@
 
 from config import Config
 import json
-from tools import MySQLDB, Encoder, CantorishDeltaUpdater
+from tools import MySQLDB, Encoder, CantorishBaseDeltaUpdater
 from queries import queryMap
 import logging
 import logging.handlers
 import os,sys
 import getopt
-from kafka import KafkaConsumer, KafkaClient, SimpleConsumer
 
 script_path = os.path.dirname(os.path.abspath(__file__))
 env = 'default'
@@ -27,15 +26,15 @@ for k, v in opts:
   elif k in ("-r", "-range"):
     range = int(v)
 
-logger = logging.getLogger('etl_cantorish')
+logger = logging.getLogger('etl_cantorish_base')
 logger.setLevel(logging.INFO)
-LOG_FILENAME = "/tmp/etl.cantorish.%s.delta.log"%env
+LOG_FILENAME = "/tmp/etl.cantorish_base.%s.delta.log"%env
 handler = logging.handlers.RotatingFileHandler(LOG_FILENAME, maxBytes=100000000, backupCount=5)
 handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
 logger.addHandler(handler)
 
 pid = str(os.getpid())
-pidfile = "/tmp/etl.cantorish.%s.delta.pid"%env
+pidfile = "/tmp/etl.cantorish_base.%s.delta.pid"%env
 
 if os.path.isfile(pidfile):
   logger.warn( "%s already exists, exiting" % pidfile )
@@ -47,10 +46,9 @@ try:
   cfg = Config(file(config_file))[env]
   db_source = MySQLDB(cfg['db']['source'])
   db_target = MySQLDB(cfg['db']['management'])
-  kafka_consumer = KafkaConsumer(bootstrap_servers=cfg['kafka']['source']['brokers'], group_id=cfg['kafka']['source']['group'], enable_auto_commit=False)
-  kafka_consumer.subscribe(cfg['kafka']['source']['topics'])
-  deltaUpdater = CantorishDeltaUpdater(db_source, db_target, kafka_consumer, queryMap, range)
+  deltaUpdater = CantorishBaseDeltaUpdater(db_source, db_target, queryMap, range)
   deltaUpdater.streamDelta(batch_size)
+  
   db_source.close()
   db_target.close()
 except:
