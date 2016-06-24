@@ -173,14 +173,22 @@ ON DUPLICATE KEY UPDATE source_base_log_id = VALUES(source_base_log_id)
 
 
   "cantorish_subscribed_delta_fetch": """
-          SELECT bp.base_product_id, max(spl.log_id) as log_id
-            FROM subscribed_product_logs spl
-      INNER JOIN base_product bp
-              ON spl.new_base_product_id = bp.base_product_id
-              OR spl.old_base_product_id = bp.base_product_id
-           WHERE log_id > %s
-             AND log_id <= %s
-        GROUP BY bp.base_product_id
+          SELECT base_product_id, max(log_id) as log_id
+            FROM (          SELECT spl.new_base_product_id as base_product_id, max(spl.log_id) as log_id 
+                              FROM subscribed_product_logs spl
+                             WHERE log_id > %s
+                               AND log_id <= %s
+                               AND spl.new_base_product_id is not null
+                          GROUP BY spl.new_base_product_id
+                             UNION
+                            SELECT spl.old_base_product_id as base_product_id, max(spl.log_id) as log_id
+                              FROM subscribed_product_logs spl
+                             WHERE log_id > %s
+                               AND log_id <= %s
+                               AND spl.old_base_product_id is not null
+                          GROUP BY spl.old_base_product_id
+                 ) a
+        GROUP BY base_product_id;
   """,
 
   "cantorish_subscribed_delta_merge": """
@@ -203,7 +211,7 @@ ON DUPLICATE KEY UPDATE source_subscribed_log_id = VALUES(source_subscribed_log_
 
   """,
 
-  "cantorish_susbcribed_bookmark_insert": """
+  "cantorish_subscribed_bookmark_insert": """
      INSERT INTO mpdm_subscribed_bookmark(log_id, recs, time_ms) 
           VALUES (%s, %s, %s)
   """,
@@ -218,11 +226,10 @@ ON DUPLICATE KEY UPDATE source_subscribed_log_id = VALUES(source_subscribed_log_
              AND (source_base_log_id > target_base_log_id
                   OR source_subscribed_log_id > target_subscribed_log_id)
         ORDER BY base_product_id desc
-           limit 10
   """,
 
   "product_success_merge": """
-     INSERT INTO mpdm_status (base_product_id, source_base_log_id, source_subscribed_log_id, target_subscribed_log_id, target_subscribed_log_id)
+     INSERT INTO mpdm_status (base_product_id, source_base_log_id, source_subscribed_log_id, target_base_log_id, target_subscribed_log_id)
           VALUES %s
 ON DUPLICATE KEY UPDATE target_base_log_id = VALUES(target_base_log_id), target_subscribed_log_id = VALUES(target_subscribed_log_id)
   """,

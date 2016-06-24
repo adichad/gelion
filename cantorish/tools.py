@@ -239,9 +239,9 @@ class CantorishShaper(object):
     product.pop('video_url', None)
 
     if is_top:
-      product['variants'] = [{ 'id': id, 'name': product['name'], 'description': product['description'], 'small_description': product['small_description'], 'media': product['media'], 'attributes': attributes, 'subscriptions': self.subscribedProducts(id)}]
+      product['variants'] = [{ 'id': id, 'created_dt': product['created_dt'], 'updated_dt': product['updated_dt'], 'name': product['name'], 'description': product['description'], 'small_description': product['small_description'], 'status': product['status'], 'is_deleted': product['is_deleted'], 'media': product['media'], 'attributes': attributes, 'media': product['media'], 'meta': product['meta'], 'subscriptions': self.subscribedProducts(id)}]
 
-      product['configurable_with'] = map(lambda i: int(i), filter(lambda i: self.isInt(i) and int(i) > 0, map(lambda c: c.strip(), product['configurable_with'].split(","))))
+      product['configurable_with'] = map(lambda i: int(i), filter(lambda i: self.isInt(i) and int(i) > 0, map(lambda c: c.strip(), (product['configurable_with'] or "").split(","))))
       if product['is_configurable'] == 1 and len(product['configurable_with']) > 0:
         format_strings = ','.join(['%s'] * len(product['configurable_with']))
         variants = self.db.get(self.queryMap["base_product"] % (format_strings) % tuple(product['configurable_with']))
@@ -303,7 +303,7 @@ class CantorishBaseDeltaUpdater(object):
       format_strings = ','.join(['%s'] * len(deltaBatch))
       self.db_target.put(
         self.queries["cantorish_base_delta_merge"] % format_strings % 
-        tuple(map(lambda rec: "(%s, '%s', %s)"%(str(rec['id']), str(rec['log_id']), str(randint(0, self.procs-1))), deltaBatch))
+        tuple(map(lambda rec: "(%s, '%s', %s)"%(str(rec['base_product_id']), str(rec['log_id']), str(randint(0, self.procs-1))), deltaBatch))
       )
       count+=len(deltaBatch)
       deltaBatch = cur.fetchmany(batchSize)
@@ -342,13 +342,13 @@ class CantorishSubscribedDeltaUpdater(object):
     logger.info("current max    log_id: "+str(idCurr))
     count = 0
 
-    cur = self.db_source.getCursor(self.queries["cantorish_subscribed_delta_fetch"], (idPrev, idCurr, ))
+    cur = self.db_source.getCursor(self.queries["cantorish_subscribed_delta_fetch"], (idPrev, idCurr, idPrev, idCurr ))
     deltaBatch = cur.fetchmany(batchSize)
     while len(deltaBatch)>0:
       format_strings = ','.join(['%s'] * len(deltaBatch))
       self.db_target.put(
         self.queries["cantorish_subscribed_delta_merge"] % format_strings % 
-        tuple(map(lambda rec: "(%s, '%s', %s)"%(str(rec['id']), str(rec['log_id']), str(randint(0, self.procs-1))), deltaBatch))
+        tuple(map(lambda rec: "(%s, '%s', %s)"%(str(rec['base_product_id']), str(rec['log_id']), str(randint(0, self.procs-1))), deltaBatch))
       )
       count+=len(deltaBatch)
       deltaBatch = cur.fetchmany(batchSize)
@@ -357,7 +357,7 @@ class CantorishSubscribedDeltaUpdater(object):
     end = int(round(time.time() * 1000))
     self.db_target.put(self.queries["cantorish_subscribed_bookmark_insert"], (idCurr, count, (end-start)))
 
-  def idPrev(self): 
+  def idPrev(self):
     result = self.db_target.get(self.queries["last_target_subscribed_log_id"])
     return result[0]['log_id'] if len(result) > 0 else 0
 
@@ -437,17 +437,16 @@ class MandelbrotPipe(object):
     start = int(round(time.time() * 1000))
     cur = self.db_target.getCursor(self.queries["product_id_fetch"], (self.proc_id, self.procs, ))
     deltaBatch = cur.fetchmany(batchSize)
-    logger.info("batch ids: " + json.dumps(deltaBatch, cls=Encoder, indent=2))
     jobs = []
     count = 0
     while len(deltaBatch)>0 and killer.runMore:
       ids = map(lambda rec: rec['id'], deltaBatch)
       logger.info("shaping ids: "+json.dumps(ids, cls=Encoder))
       shape = self.shaper.shape(ids)
-      logger.info(json.dumps(shape, cls=Encoder, indent=2))
-      #job = self.post(self.shaper.shape(ids), deltaBatch)
-      #if job is not None:
-      #  jobs.append(job)
+      logger.debug(json.dumps(shape, cls=Encoder, indent=2))
+      job = self.post(shape, deltaBatch)
+      if job is not None:
+        jobs.append(job)
       count+=len(deltaBatch)
       deltaBatch = cur.fetchmany(batchSize)
     cur.close()

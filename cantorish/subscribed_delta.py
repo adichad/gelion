@@ -26,7 +26,7 @@ for k, v in opts:
   elif k in ("-r", "-range"):
     range = int(v)
 
-logger = logging.getLogger('etl_cantorish_subscribed')
+logger = logging.getLogger('etl_cantorish')
 logger.setLevel(logging.INFO)
 LOG_FILENAME = "/tmp/etl.cantorish_subscribed.%s.delta.log"%env
 handler = logging.handlers.RotatingFileHandler(LOG_FILENAME, maxBytes=100000000, backupCount=5)
@@ -48,7 +48,7 @@ try:
   db_target = MySQLDB(cfg['db']['management'])
   deltaUpdater = CantorishSubscribedDeltaUpdater(db_source, db_target, queryMap, range)
   deltaUpdater.streamDelta(batch_size)
-  
+
   db_source.close()
   db_target.close()
 except:

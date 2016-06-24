@@ -26,7 +26,7 @@ for k, v in opts:
   elif k in ("-r", "-range"):
     range = int(v)
 
-logger = logging.getLogger('etl_cantorish_base')
+logger = logging.getLogger('etl_cantorish')
 logger.setLevel(logging.INFO)
 LOG_FILENAME = "/tmp/etl.cantorish_base.%s.delta.log"%env
 handler = logging.handlers.RotatingFileHandler(LOG_FILENAME, maxBytes=100000000, backupCount=5)
