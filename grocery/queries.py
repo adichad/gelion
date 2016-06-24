@@ -225,6 +225,7 @@ AS
   "grocery_storefront": """
           select s.id
                 ,s.title
+                ,s.UrlSlug as url_slug
                 ,s.startdate
                 ,s.enddate
                 ,case when s.status = 1 then 1 else 0 end as status
