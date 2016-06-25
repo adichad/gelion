@@ -18,3 +18,4 @@ dep/bin
 site/node_modules
 site/app/bower_components
 *.pyc
+nohup.out
