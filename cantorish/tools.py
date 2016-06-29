@@ -14,6 +14,8 @@ import logging
 import time
 import phpserialize
 from kafka import KafkaConsumer, KafkaClient, SimpleConsumer
+import itertools
+import copy
 
 logger = logging.getLogger('etl_cantorish')
 
@@ -183,6 +185,16 @@ class CantorishShaper(object):
     except:
       return False
 
+  def categoryTree(self, cats=[]):
+    grouped = dict(map(lambda (k,v): (k, list(v)), itertools.groupby(sorted(cats, key=lambda c: c['parent_id']), lambda c: c['parent_id'])))
+
+    for k, mcats in grouped.iteritems():
+      for c in mcats:
+        if c['id'] in grouped:
+          c['tree']=grouped[c['id']]
+            
+    return grouped[0] if 0 in grouped else []
+
   def reshapeBase(self, product, is_top=True):
     id = product['id']
     product['name'] = self.htmlParser.unescape(product['name'] or "")
@@ -208,18 +220,13 @@ class CantorishShaper(object):
         if len(cats)>0:
           product['categories']['l'+str(level)] = cats
       product['categories']['all'] = all_cats
+      product['categories']['tree'] = self.categoryTree(copy.deepcopy(all_cats))
 
     product['attributes'] = []
     attributes = []
-    attributes.append({ 'name': 'color', 'value': product['color']})
-    attributes.append({ 'name': 'size', 'value': product['size']})
-    attributes.append({ 'name': 'brand', 'value': product['brand']})
-    attributes.append({ 'name': 'weight', 'value': product['weight']})
-    attributes.append({ 'name': 'model_name', 'value': product['model_name']})
-    attributes.append({ 'name': 'model_number', 'value': product['model_number']})
-    attributes.append({ 'name': 'key_features', 'value': product['key_features']})
-    attributes.append({ 'name': 'manufacturer', 'value': product['manufacturer']})
-    attributes.append({ 'name': 'video_url', 'value': product['video_url']})
+    for att in ['color', 'size', 'brand', 'weight', 'model_name', 'model_number', 'key_features', 'manufacturer', 'video_url']:
+      attributes.append({ 'name': att, 'value': product[att]})
+      product.pop(att, None)
     try:
       for key, value in json.loads(product['specifications'])['attributes'].iteritems():
         attributes.append({ 'name': key, 'value': value })
@@ -227,16 +234,6 @@ class CantorishShaper(object):
       None
     product.pop('specifications', None)
 
-
-    product.pop('color', None)
-    product.pop('size', None)
-    product.pop('brand', None)
-    product.pop('weight', None)
-    product.pop('model_name', None)
-    product.pop('model_number', None)
-    product.pop('key_features', None)
-    product.pop('manufacturer', None)
-    product.pop('video_url', None)
 
     if is_top:
       product['variants'] = [{ 'id': id, 'created_dt': product['created_dt'], 'updated_dt': product['updated_dt'], 'name': product['name'], 'description': product['description'], 'small_description': product['small_description'], 'status': product['status'], 'is_deleted': product['is_deleted'], 'media': product['media'], 'attributes': attributes, 'media': product['media'], 'meta': product['meta'], 'subscriptions': self.subscribedProducts(id)}]

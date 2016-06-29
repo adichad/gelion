@@ -149,6 +149,11 @@ class MSSQLDB(object):
       cur = self.conn.cursor(as_dict=True)
       cur.execute(query, params)
     except (AttributeError, pymssql.OperationalError):
+      if self.conn is not None:
+        try:
+          self.conn.close()
+        except:
+          None
       self.connect()
       cur = self.conn.cursor(as_dict=True)
       cur.execute(query, params)
@@ -160,11 +165,12 @@ class MSSQLDB(object):
   def getCursor(self, query, params=()):
     cur = None
     try:
-      cur = self.conn.cursor(as_dict=True)
+      conn = self.getConn()
+      cur = conn.cursor(as_dict=True)
       cur.execute(query, params)
     except (AttributeError, pymssql.OperationalError):
-      self.connect()
-      cur = self.conn.cursor(as_dict=True)
+      conn = self.getConn()
+      cur = conn.cursor(as_dict=True)
       cur.execute(query, params)
     return cur
 
@@ -316,6 +322,7 @@ class GroceryDeltaUpdater(object):
       count+=len(deltaBatch)
       deltaBatch = cur.fetchmany(batchSize)
 
+    cur.connection.close()
     cur.close()
     end = int(round(time.time() * 1000))
     self.db_target.put(self.queries["grocery_bookmark_insert"], (idCurr, count, (end-start)))
