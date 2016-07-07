@@ -130,7 +130,9 @@ queryMap = {
                  s.seller_mailer_flag,
                  s.buyer_mailer_flag,
                  s.store_shipping_charge,
-                 s.is_active_valid
+                 s.is_active_valid,
+                 sp.vat_per as vat_percent,
+                 sp.cst_per as cst_percent
             FROM subscribed_product sp
       INNER JOIN store s
               ON sp.store_id = s.store_id
