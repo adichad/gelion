@@ -13,6 +13,8 @@ from random import randint
 import logging
 import time
 import phpserialize
+import itertools
+import copy
 
 logger = logging.getLogger('etl_product')
 
@@ -150,6 +152,7 @@ class ProductsShaper(object):
         product['store_fronts'] = self.db.get(self.queryMap["subscribed_product_store_fronts"], (id, ))
         product['store_fronts_count'] = len(product['store_fronts'])
         product['images'] = map(lambda i: i['image'], self.db.get(self.queryMap["product_images"], (id, )))
+        product['attributes'] = self.db.get(self.queryMap["base_product_attributes"], (id, ))
         mpdm_shit = self.db_mpdm.get(self.queryMap["mpdm_subscribed_product"], (product['subscribed_product_id'], ))
         if len(mpdm_shit) > 0:
           mpdm_shit = mpdm_shit[0]
@@ -159,7 +162,6 @@ class ProductsShaper(object):
           product['order_margin'] = ((product['order_gsv']/product['order_quantity']) - product['transfer_price']) if product['order_quantity'] > 0 and product['order_gsv'] > 0 and product['transfer_price'] > 0 else 0
 
         prices = self.db.get(self.queryMap["subscribed_special_price"], (id, ))
-
         product['flash_sales'] = []
         product['bazaar_prices'] = []
         product['selling_prices'] = []
@@ -221,6 +223,16 @@ class ProductsShaper(object):
     for category in categories:
       self.level(category, parent_categories)
 
+  def categoryTree(self, cats=[]):
+    grouped = dict(map(lambda (k,v): (k, list(v)), itertools.groupby(sorted(cats, key=lambda c: c['parent_id']), lambda c: c['parent_id'])))
+
+    for k, mcats in grouped.iteritems():
+      for c in mcats:
+        if c['category_id'] in grouped:
+          c['categories_tree']=filter(lambda ic: ic['category_id']!=c['category_id'], grouped[c['category_id']])
+
+    return grouped[0] if 0 in grouped else []
+
   def shape(self, ids = []):
     format_strings = ','.join(['%s'] * len(ids))
     logger.debug(self.queryMap["base_product"] % (format_strings)% tuple(ids))
@@ -230,7 +242,7 @@ class ProductsShaper(object):
     logger.debug("products: "+json.dumps(products, cls=Encoder, indent=2)) 
     for product in products:
       id = product['product_id']
-      product['categories'] = self.db.get(self.queryMap["product_categories"], (id, )) #TOASK: Category assigment is non-mandatory? 1165
+      product['categories'] = self.db.get(self.queryMap["product_categories"], (id, )) 
       product['parent_categories'] = self.ancestorCategories(map(lambda cat: cat['category_id'], product['categories']), product)
       self.levelCategories(product['categories'], product['parent_categories'])
       all_cats = dict((v['category_id'], v) for v in product['categories'] + product['parent_categories']).values()
@@ -242,6 +254,7 @@ class ProductsShaper(object):
       product['categories_l6'] = filter(lambda c: c['level'] == 6, all_cats)
       product['categories_l7'] = filter(lambda c: c['level'] == 7, all_cats)
       product['categories_nested'] = all_cats
+      product['categories_tree'] = self.categoryTree(copy.deepcopy(all_cats))
       product['options'] = self.reshapeOptions(self.db.get(self.queryMap["base_product_options"], (id, )))
       product['attributes'] = self.db.get(self.queryMap["base_product_attributes"], (id, ))
       product['attributes_value'] = []
@@ -252,7 +265,7 @@ class ProductsShaper(object):
       product['reviews'] = self.db.get(self.queryMap["base_product_reviews"], (id, ))
       subscribed_ids = map(lambda rec: rec['grouped_id'], self.db.get(self.queryMap["subscribed_ids"], (id, )))
       product['subscriptions'] = self.subscribedProducts(subscribed_ids, sellers)
-
+      product['seller_name'] = map(lambda s: s['seller_name'], filter(lambda s: s['status'] == 1, product['subscriptions']))
       product['order_count'] = sum(map(lambda s: s['order_count'], product['subscriptions'])) if len(product['subscriptions']) > 0 else 0.0
       product['order_quantity'] = sum(map(lambda s: s['order_quantity'], product['subscriptions'])) if len(product['subscriptions']) > 0 else 0.0
       product['order_gsv'] = sum(map(lambda s: s['order_gsv'], product['subscriptions'])) if len(product['subscriptions']) > 0 else 0.0

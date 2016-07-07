@@ -191,10 +191,20 @@ queryMap = {
                  coalesce(sum(op.lpoints_earned), 0) as order_loyalty_earned,
                  max(op.date_added) as order_last_dt,
                  avg(coalesce(op.discount_pct, 0)) as order_discount_pct_avg,
-                 cast(coalesce(bs.value, '0') as signed integer) as boost
+                 cast(coalesce(bs.value, '0') as signed integer) as boost,
+                 pd.language_id,
+                 pd.name,
+                 pd.description,
+                 pd.meta_description,
+                 pd.meta_keyword,
+                 pd.tag,
+                 pd.tag_title,
+                 pd.key_feature
             FROM oc_product p
       INNER JOIN oc_product_grouped pg
               ON p.product_id = pg.grouped_id
+ LEFT OUTER JOIN oc_product_description pd
+              ON p.product_id = pd.product_id
  LEFT OUTER JOIN oc_customerpartner_to_customer ctc
               ON pg.customer_id = ctc.customer_id
  LEFT OUTER JOIN oc_stock_status ss
