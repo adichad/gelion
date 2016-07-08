@@ -148,7 +148,7 @@ class MSSQLDB(object):
     try:
       cur = self.conn.cursor(as_dict=True)
       cur.execute(query, params)
-    except (AttributeError, pymssql.OperationalError):
+    except (AttributeError, pymssql.OperationalError, pymssql.InterfaceError):
       if self.conn is not None:
         try:
           self.conn.close()
