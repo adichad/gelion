@@ -251,10 +251,12 @@ class PostgreSQLDB(object):
 
 class GroceryShaper(object):
   db = None
+  db_orders = None
   queryMap = None
 
-  def __init__(self, db, queryMap):
+  def __init__(self, db, db_orders, queryMap):
     self.db = db
+    self.db_orders = db_orders
     self.queryMap = queryMap
 
   def shape(self, ids = []):
@@ -282,6 +284,9 @@ class GroceryShaper(object):
       grocery['default_display_price'] = max(map(lambda i: i['display_price'], grocery['items'])) if len(grocery['items']) > 0 else 0.0
       grocery['default_discount_percent'] = float(grocery['default_display_price'] - grocery['default_customer_price'])*100.0/float(grocery['default_display_price']) if grocery['default_display_price'] > 0 else 0.0
       for item in grocery['items']:
+        item['orders'] = self.db_orders.get(self.queryMap["grocery_orders"] % tuple([str(item['id'])]))
+        for order in item['orders']:
+          order['item_set'] = map(lambda i: int(i), order['item_set'].split(','))
         item['postal_codes'] = filter(lambda p: p !="", map(lambda p: p.strip(), (item['postal_codes'] or "").split(';')))
         item['areas'] = map(lambda a: int(a), filter(lambda p: p !="", map(lambda p: p.strip(), (item['areas'] or "").split(','))))
         item['delivery_days'] = map(lambda a: int(a), filter(lambda p: p !="", map(lambda p: p.strip(), (item['delivery_days'] or "").split(','))))
@@ -290,6 +295,55 @@ class GroceryShaper(object):
     # logger.info("groceries: "+json.dumps(groceries, cls=Encoder, indent=2)) 
     return groceries
 
+
+class GroceryOrdersDeltaUpdater(object):
+  db_source = None
+  db_target = None
+  queries = None
+  procs = None
+
+  def __init__(self, db_source, db_target, db_orders, queries, procs):
+    self.db_source = db_source
+    self.db_target = db_target
+    self.db_orders = db_orders
+    self.queries = queries
+    self.procs = procs
+
+  def streamDelta(self, batchSize):
+    start = int(round(time.time() * 1000))
+    idPrev = self.idPrev()
+    idCurr = self.idCurr()
+    logger.info("last processed log_id: "+str(idPrev))
+    logger.info("current max    log_id: "+str(idCurr))
+    count = 0
+    cur = self.db_orders.getCursor(self.queries["grocery_orders_delta_fetch"], (idPrev, idCurr, ))
+    deltaBatch = cur.fetchmany(batchSize)
+    while len(deltaBatch)>0:
+      format_strings = ','.join(['%s'] * len(deltaBatch))
+      variants = self.db_source.get(self.queries["grocery_item_variant_fetch"] % format_strings % tuple(map(lambda rec: rec['item_id'], deltaBatch)))
+      variantDelta = map(lambda rec: { 'updated_on': rec['order_item_updated_on'], 'variant_id': filter(lambda v: v['item_id'] == int(rec['item_id']), variants)[0]['variant_id'] }, deltaBatch)
+      
+      format_strings = ','.join(['%s'] * len(deltaBatch))
+      
+      self.db_target.put(
+        self.queries["grocery_orders_delta_merge"] % format_strings % 
+          tuple(map(lambda rec: "(%s, '%s', %s)"%(str(rec['variant_id']), rec['updated_on'], str(randint(0, self.procs-1))), variantDelta))
+      )
+      count+=len(deltaBatch)
+      deltaBatch = cur.fetchmany(batchSize)
+
+    cur.connection.close()
+    cur.close()
+    end = int(round(time.time() * 1000))
+    self.db_target.put(self.queries["grocery_orders_bookmark_insert"], (idCurr, count, (end-start)))
+
+  def idPrev(self): 
+    result = self.db_target.get(self.queries["orders_last_target_updated_on"])
+    return result[0]['last_updated_on'] if len(result) > 0 else '1970-01-01 00:00:00'
+
+  def idCurr(self):
+    result = self.db_orders.get(self.queries["orders_max_source_updated_on"])
+    return result[0]['last_updated_on'] if len(result) > 0 else '1970-01-01 00:00:00'
 
 
 class GroceryDeltaUpdater(object):
@@ -362,7 +416,7 @@ def hook_factory(*factory_args, **factory_kwargs):
     try:
       if len(successes) > 0:
         format_strings = ','.join(['%s'] * len(successes))
-        db.put(queryMap["grocery_success_merge"] % format_strings % tuple(map(lambda rec: "(%s, %s, %s)"%(str(rec['variant_id']), str(rec['source_log_id']), str(rec['source_log_id'])), successes)))
+        db.put(queryMap["grocery_success_merge"] % format_strings % tuple(map(lambda rec: "(%s, %s, '%s', %s, '%s')"%(str(rec['variant_id']), str(rec['source_log_id']), rec['source_order_last_updated_on'], str(rec['source_log_id']), rec['source_order_last_updated_on']), successes)))
       if len(failures) > 0:
         format_strings = ','.join(['%s'] * len(failures))
         db.put(queryMap["grocery_failure_merge"] % format_strings % tuple(map(lambda rec: "(%s, %s, '%s')"%(str(rec['variant_id']), str(rec['source_log_id']), str(rec['error'])), failures)))
@@ -400,7 +454,7 @@ class MandelbrotPipe(object):
       req = grequests.post(self.url, data = json.dumps(data, cls=Encoder, indent=2), hooks = {'response': [hook_factory(delta_batch=deltaBatch, db=self.db_target)]})
       return grequests.send(req, self.requestPool)
     except Exception, e:
-      failures = map(lambda rec: {"variant_id": rec['variant_id'], "source_log_id": rec['source_log_id'], "error": str(e)}, deltaBatch)
+      failures = map(lambda rec: {"variant_id": rec['variant_id'], "source_log_id": rec['source_log_id'], "source_order_last_updated_on": rec['source_order_last_updated_on'], "error": str(e)}, deltaBatch)
       format_strings = ','.join(['%s'] * len(failures))
       self.db_target.put(queryMap["grocery_failure_merge"] % format_strings % tuple(map(lambda rec: "(%s, '%s', '%s')"%(str(rec['variant_id']), rec['source_log_id'], str(rec['error'])), failures)))
       return None
@@ -411,6 +465,7 @@ class MandelbrotPipe(object):
     deltaBatch = cur.fetchmany(batchSize)
     jobs = []
     count = 0
+    self.db_source.connect()
     while len(deltaBatch)>0 and killer.runMore:
       ids = map(lambda rec: rec['variant_id'], deltaBatch)
       logger.info("shaping variant_ids: "+json.dumps(ids, cls=Encoder))

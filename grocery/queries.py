@@ -237,6 +237,69 @@ AS
              and sim.item_id in (%s)
   """,
 
+  "grocery_orders": """
+         select oi.order_id,
+                 user_id,
+                 status_code,
+                 updated_on,
+                 geo_id,
+                 parent_order_id,
+                 total_offer_price as total_offer_price,
+                 total_payble_amount as total_order_value,
+                 min(oi.quantity) as quantity,
+                 max(oi.offer_price) as offer_price,
+                 group_concat(distinct oi2.item_id) as item_set
+            from `order` o
+      inner join status s
+              on o.status_id = s.id
+      inner join order_item oi
+              on oi.order_id = o.order_reference_id
+      inner join order_item oi2
+              on oi2.order_id = o.order_reference_id
+           where oi.item_id = %s
+        group by order_id
+  """,
+
+  "grocery_orders_delta_fetch": """
+          SELECT item_id, 
+                 max(updated_on) as order_item_updated_on
+            FROM `order` o
+      INNER JOIN order_item oi
+              ON o.order_reference_id = oi.order_id
+           WHERE updated_on >= %s and updated_on < %s
+        GROUP BY item_id
+        ORDER BY order_item_updated_on ASC
+  """,
+
+  "grocery_item_variant_fetch": """
+          SELECT ref_product_id as variant_id,
+                 item_id
+            FROM Items i
+           WHERE i.item_id in (%s)
+  """,
+
+  "grocery_orders_delta_merge": """
+     INSERT INTO grocery_status (variant_id, source_order_last_updated_on, bucket)
+          VALUES %s
+ON DUPLICATE KEY UPDATE source_order_last_updated_on = VALUES(source_order_last_updated_on)
+  """,
+
+  "grocery_orders_bookmark_insert": """
+     INSERT INTO grocery_orders_bookmark(updated_on, recs, time_ms) 
+          VALUES (%s, %s, %s)
+  """,
+
+  "orders_last_target_updated_on": """
+          SELECT updated_on as last_updated_on
+            FROM grocery_orders_bookmark
+           WHERE id IN (SELECT max(id) from grocery_orders_bookmark)
+  """,
+
+  "orders_max_source_updated_on": """
+          SELECT max(updated_on) as last_updated_on
+            FROM `order` o
+  """,
+
   "grocery_delta_fetch": """
           SELECT variant_id, max(log_id) as last_log_id
             FROM dbo.console_search_indexing_log
@@ -271,16 +334,16 @@ ON DUPLICATE KEY UPDATE source_log_id = VALUES(source_log_id)
   """,
 
   "grocery_id_fetch": """
-          SELECT variant_id, source_log_id
+          SELECT variant_id, source_log_id, source_order_last_updated_on
             FROM grocery_status
            WHERE %s = MOD(bucket, %s) 
-             AND source_log_id > target_log_id
+             AND (source_log_id > target_log_id OR source_order_last_updated_on > target_order_last_updated_on)
   """,
 
   "grocery_success_merge": """
-     INSERT INTO grocery_status (variant_id, source_log_id, target_log_id)
+     INSERT INTO grocery_status (variant_id, source_log_id, source_order_last_updated_on, target_log_id, target_order_last_updated_on)
           VALUES %s
-ON DUPLICATE KEY UPDATE target_log_id = VALUES(target_log_id)
+ON DUPLICATE KEY UPDATE target_log_id = VALUES(target_log_id), target_order_last_updated_on = VALUES(target_order_last_updated_on)
   """,
 
   "grocery_failure_merge": """

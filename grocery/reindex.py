@@ -41,6 +41,7 @@ file(pidfile, 'w').write(pid)
 cfg = Config(file(config_file))[env]
 db_source = MSSQLDB(cfg['db']['source'])
 db_target = MySQLDB(cfg['db']['management'])
+db_orders = MySQLDB(cfg['db']['orders'])
 url = cfg['mandelbrot']['url']
 
 try:
@@ -48,7 +49,7 @@ try:
   app = Flask(__name__)
   logger.info("initiated app")
 
-  shaper = GroceryShaper(db_source, queryMap)
+  shaper = GroceryShaper(db_source, db_orders, queryMap)
 
   @app.route('/reindex/grocery/<int:variant_id>', methods=['POST', 'GET'])
   def reindex_grocery(variant_id):
