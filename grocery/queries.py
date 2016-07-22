@@ -149,6 +149,7 @@ AS
                 ,STUFF((SELECT ','+convert(varchar(10), DeliveryDays) FROM DeliveryDays WHERE ItemId=i.item_id AND status=1 FOR XML PATH('')) , 1 , 1 , '' ) as delivery_days
                 ,mz.CityName as city
                 ,mz.Statename as state
+                ,mz.gid as zone_gid
                 ,mz.CountryName as country
                 ,mc.city_id
                 ,mc.status as city_status
@@ -211,6 +212,7 @@ AS
                 ,mz.Status
                 ,mz.PostalCode
                 ,mz.Area
+                ,mz.GID
                 ,mz.CityName
                 ,mz.Statename
                 ,mz.CountryName
