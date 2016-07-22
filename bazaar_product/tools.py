@@ -115,7 +115,7 @@ class ProductsShaper(object):
       accumulator.extend(ids)
       format_strings = ','.join(['%s'] * len(ids))
       parents = self.db.get(self.queryMap["parent_categories"] % format_strings, tuple(ids))
-      self.ancestorCategoryIDList(filter(lambda cat: cat > 0, map(lambda cat: cat['parent_id'], parents)), accumulator)
+      self.ancestorCategoryIDList(filter(lambda cat: cat > 0, map(lambda cat: cat['parent_id'], filter(lambda p: p['category_id']!=0, parents))), accumulator)
 
   def ancestorCategories(self, leafids, product):
     parentids = []
