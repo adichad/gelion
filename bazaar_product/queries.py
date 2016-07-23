@@ -101,6 +101,8 @@ queryMap = {
           SELECT c.category_id, c.parent_id
             FROM oc_category c
            WHERE c.category_id in (%s)
+             AND c.category_id > 0
+             AND c.category_id <> c.parent_id
   """,
 
   "categories": """
