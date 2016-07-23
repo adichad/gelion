@@ -236,7 +236,9 @@ class CantorishShaper(object):
 
 
     if is_top:
-      product['variants'] = [{ 'id': id, 'created_dt': product['created_dt'], 'updated_dt': product['updated_dt'], 'name': product['name'], 'description': product['description'], 'small_description': product['small_description'], 'status': product['status'], 'is_deleted': product['is_deleted'], 'media': product['media'], 'attributes': attributes, 'media': product['media'], 'meta': product['meta'], 'subscriptions': self.subscribedProducts(id)}]
+      subscriptions = self.subscribedProducts(id)
+      product['variants'] = [{ 'id': id, 'created_dt': product['created_dt'], 'updated_dt': product['updated_dt'], 'name': product['name'], 'description': product['description'], 'small_description': product['small_description'], 'status': product['status'], 'is_deleted': product['is_deleted'], 'attributes': attributes, 'media': product['media'], 'meta': product['meta'], 'subscriptions': subscriptions}]
+      product['subscriptions'] = subscriptions
 
       product['configurable_with'] = map(lambda i: int(i), filter(lambda i: self.isInt(i) and int(i) > 0, map(lambda c: c.strip(), (product['configurable_with'] or "").split(","))))
       if product['is_configurable'] == 1 and len(product['configurable_with']) > 0:
