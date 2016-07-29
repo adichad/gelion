@@ -67,7 +67,7 @@ queryMap = {
   """,
 
   "mpdm_base_product": """
-          SELECT bp.is_deleted as is_deleted
+          SELECT case when bp.is_deleted = 1 then true else false end as is_deleted
             FROM base_product bp
            WHERE bp.base_product_id = %s;
   """,
@@ -256,7 +256,7 @@ queryMap = {
           SELECT coalesce(sc.shipping_charges, sp.subscribe_shipping_charge) as shipping_charge,
                  sp.transfer_price as transfer_price,
                  sp.is_cod as is_cod_apriori
-                 sp.is_deleted as is_deleted
+                 case when sp.is_deleted then true else false end as is_deleted
             FROM subscribed_product sp
  LEFT OUTER JOIN shipping_charges sc
               ON sp.subscribed_product_id = sc.subscribed_id
