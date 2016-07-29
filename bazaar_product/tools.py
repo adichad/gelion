@@ -154,13 +154,15 @@ class ProductsShaper(object):
         product['images'] = map(lambda i: i['image'], self.db.get(self.queryMap["product_images"], (id, )))
         product['attributes'] = self.db.get(self.queryMap["base_product_attributes"], (id, ))
         mpdm_shit = self.db_mpdm.get(self.queryMap["mpdm_subscribed_product"], (product['subscribed_product_id'], ))
-        product['is_deleted'] = mpdm_shit['is_deleted']
         if len(mpdm_shit) > 0:
           mpdm_shit = mpdm_shit[0]
+          product['is_deleted'] = mpdm_shit['is_deleted']
           product['shipping_charge'] = mpdm_shit['shipping_charge']
           product['transfer_price'] = mpdm_shit['transfer_price']
           product['is_cod_apriori'] = True if mpdm_shit['is_cod_apriori'] > 0 else False
           product['order_margin'] = ((product['order_gsv']/product['order_quantity']) - product['transfer_price']) if product['order_quantity'] > 0 and product['order_gsv'] > 0 and product['transfer_price'] > 0 else 0
+        else:
+          product['is_deleted'] = True
 
         prices = self.db.get(self.queryMap["subscribed_special_price"], (id, ))
         product['flash_sales'] = []
@@ -244,7 +246,7 @@ class ProductsShaper(object):
     for product in products:
       id = product['product_id']
       mpdm_shit = self.db_mpdm.get(self.queryMap["mpdm_base_product"], (product['base_product_id'], ))
-      product['is_deleted'] = mpdm_shit['is_deleted']
+      product['is_deleted'] = mpdm_shit[0]['is_deleted'] if len(mpdm_shit) > 0 else True
       product['categories'] = self.db.get(self.queryMap["product_categories"], (id, )) 
       product['parent_categories'] = self.ancestorCategories(map(lambda cat: cat['category_id'], product['categories']), product)
       self.levelCategories(product['categories'], product['parent_categories'])
