@@ -66,6 +66,12 @@ queryMap = {
         GROUP BY p.product_id
   """,
 
+  "mpdm_base_product": """
+          SELECT bp.is_deleted as is_deleted
+            FROM base_product bp
+           WHERE bp.base_product_id = %s;
+  """,
+
   "product_images": """
           SELECT distinct image
             FROM oc_product_image
@@ -250,6 +256,7 @@ queryMap = {
           SELECT coalesce(sc.shipping_charges, sp.subscribe_shipping_charge) as shipping_charge,
                  sp.transfer_price as transfer_price,
                  sp.is_cod as is_cod_apriori
+                 sp.is_deleted as is_deleted
             FROM subscribed_product sp
  LEFT OUTER JOIN shipping_charges sc
               ON sp.subscribed_product_id = sc.subscribed_id

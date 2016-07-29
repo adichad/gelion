@@ -154,6 +154,7 @@ class ProductsShaper(object):
         product['images'] = map(lambda i: i['image'], self.db.get(self.queryMap["product_images"], (id, )))
         product['attributes'] = self.db.get(self.queryMap["base_product_attributes"], (id, ))
         mpdm_shit = self.db_mpdm.get(self.queryMap["mpdm_subscribed_product"], (product['subscribed_product_id'], ))
+        product['is_deleted'] = mpdm_shit['is_deleted']
         if len(mpdm_shit) > 0:
           mpdm_shit = mpdm_shit[0]
           product['shipping_charge'] = mpdm_shit['shipping_charge']
@@ -242,6 +243,8 @@ class ProductsShaper(object):
     logger.debug("products: "+json.dumps(products, cls=Encoder, indent=2)) 
     for product in products:
       id = product['product_id']
+      mpdm_shit = self.db_mpdm.get(self.queryMap["mpdm_base_product"], (product['base_product_id'], ))
+      product['is_deleted'] = mpdm_shit['is_deleted']
       product['categories'] = self.db.get(self.queryMap["product_categories"], (id, )) 
       product['parent_categories'] = self.ancestorCategories(map(lambda cat: cat['category_id'], product['categories']), product)
       self.levelCategories(product['categories'], product['parent_categories'])
