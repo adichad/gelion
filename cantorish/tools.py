@@ -274,6 +274,37 @@ class CantorishShaper(object):
     return products
 
 
+class CantorishInitBaseDeltaUpdater(object):
+  db_source = None
+  db_target = None
+  queries = None
+  procs = None
+
+  def __init__(self, db_source, db_target, queries, procs):
+    self.db_source = db_source
+    self.db_target = db_target
+    self.queries = queries
+    self.procs = procs
+
+  def streamDelta(self, batchSize):
+    start = int(round(time.time() * 1000))
+
+    count = 0
+
+    cur = self.db_source.getCursor(self.queries["cantorish_init_base_delta_fetch"])
+    deltaBatch = cur.fetchmany(batchSize)
+    while len(deltaBatch)>0:
+      format_strings = ','.join(['%s'] * len(deltaBatch))
+      self.db_target.put(
+        self.queries["cantorish_init_base_delta_merge"] % format_strings % 
+        tuple(map(lambda rec: "(%s, '%s', %s)"%(str(rec['base_product_id']), str(rec['log_id']), str(randint(0, self.procs-1))), deltaBatch))
+      )
+      count+=len(deltaBatch)
+      deltaBatch = cur.fetchmany(batchSize)
+
+    cur.close()
+    end = int(round(time.time() * 1000))
+
 
 class CantorishBaseDeltaUpdater(object):
   db_source = None

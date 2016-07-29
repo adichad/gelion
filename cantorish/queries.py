@@ -139,6 +139,14 @@ queryMap = {
            WHERE sp.base_product_id = %s
   """,
 
+  "cantorish_init_base_delta_fetch": """
+          SELECT distinct bp.base_product_id, 1 as log_id
+            FROM base_product bp
+ LEFT OUTER JOIN base_product_logs bpl
+              ON bp.base_product_id = bpl.base_product_id
+           WHERE bpl.base_product_id is null
+  """,
+
 
   "cantorish_base_delta_fetch": """
           SELECT bpl.base_product_id, max(log_id) as log_id
@@ -146,6 +154,11 @@ queryMap = {
            WHERE log_id > %s
              AND log_id <= %s
         GROUP BY bpl.base_product_id
+  """,
+
+  "cantorish_init_base_delta_merge": """
+     INSERT IGNORE INTO mpdm_status (base_product_id, source_base_log_id, bucket)
+          VALUES %s
   """,
 
   "cantorish_base_delta_merge": """
