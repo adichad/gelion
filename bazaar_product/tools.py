@@ -137,6 +137,15 @@ class ProductsShaper(object):
     reshaped.sort(key = lambda opt: opt['sort_order'])
     return reshaped
 
+  def reshapeOptionsSubscribed(self, options):
+    reshaped = []
+    options.sort(key = lambda opt: opt['name'])
+    for key, group in groupby(options, lambda x: { 'name': x['name'] , 'type': x['type'], 'sort_order': x['sort_order'], 'id': x['id'], 'base_product_id': x['base_product_id']}):
+      key['values'] = map(lambda val: val['value'], group)
+      reshaped.append(key)
+    reshaped.sort(key = lambda opt: opt['sort_order'])
+    return reshaped
+
 
   def subscribedProducts(self, ids, sellers = []):
     products = []
@@ -148,7 +157,7 @@ class ProductsShaper(object):
 
       for product in products:
         id = product['product_id']
-        product['options'] = self.reshapeOptions(self.db.get(self.queryMap["subscribed_product_options"], (id, )))
+        product['options'] = self.reshapeOptionsSubscribed(self.db.get(self.queryMap["subscribed_product_options"], (id, )))
         product['store_fronts'] = self.db.get(self.queryMap["subscribed_product_store_fronts"], (id, ))
         product['store_fronts_count'] = len(product['store_fronts'])
         product['images'] = map(lambda i: i['image'], self.db.get(self.queryMap["product_images"], (id, )))
@@ -287,6 +296,33 @@ class ProductsShaper(object):
     return products
 
 
+class ProductCustomDeltaUpdater(object):
+  db_source = None
+  db_target = None
+  queries = None
+  procs = None
+
+  def __init__(self, db_source, db_target, queries, procs):
+    self.db_source = db_source
+    self.db_target = db_target
+    self.queries = queries
+    self.procs = procs
+
+  def streamDelta(self, batchSize):
+    start = int(round(time.time() * 1000))
+    count = 0
+    cur = self.db_source.getCursor(self.queries["product_custom_fetch"])
+    deltaBatch = cur.fetchmany(batchSize)
+    while len(deltaBatch)>0:
+      format_strings = ','.join(['%s'] * len(deltaBatch))
+      query = self.queries["product_custom_merge"] % format_strings % tuple(map(lambda rec: str(rec['product_id']), deltaBatch))
+      logger.info("custom query: "+query)
+      self.db_target.put(query)
+      count+=len(deltaBatch)
+      deltaBatch = cur.fetchmany(batchSize)
+
+    cur.close()
+    end = int(round(time.time() * 1000))
 
 class ProductDeltaUpdater(object):
   db_source = None

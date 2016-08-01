@@ -264,7 +264,7 @@ queryMap = {
   """,
 
   "subscribed_product_options": """
-          SELECT o.option_id as id, od.name, ovd.name as value, o.type, o.sort_order
+          SELECT o.option_id as id, od.name, ovd.name as value, o.type, o.sort_order, cgo.base_product_id
             FROM oc_customerpartner_group_option cgo
       INNER JOIN oc_product_grouped pg
               ON pg.grouped_id = cgo.grouped_id
@@ -297,6 +297,19 @@ queryMap = {
              AND (ps.date_end = '0000-00-00' OR ps.date_end > NOW()) 
         ORDER BY ps.priority ASC, ps.price ASC 
            LIMIT 100
+  """,
+
+  "product_custom_fetch": """
+          SELECT distinct p.product_id
+            FROM oc_product p
+      INNER JOIN oc_customerpartner_group_option cgo 
+              ON p.product_id = cgo.product_id
+  """,
+
+  "product_custom_merge": """
+          UPDATE product_status 
+             SET target_dt = '1970-01-01 00:00:00'
+           WHERE product_id in (%s)
   """,
 
   "product_delta_fetch": """
