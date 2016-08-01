@@ -255,8 +255,8 @@ queryMap = {
   "mpdm_subscribed_product": """
           SELECT coalesce(sc.shipping_charges, sp.subscribe_shipping_charge) as shipping_charge,
                  sp.transfer_price as transfer_price,
-                 sp.is_cod as is_cod_apriori
-                 case when sp.is_deleted then true else false end as is_deleted
+                 sp.is_cod as is_cod_apriori,
+                 case when sp.is_deleted = 1 then true else false end as is_deleted
             FROM subscribed_product sp
  LEFT OUTER JOIN shipping_charges sc
               ON sp.subscribed_product_id = sc.subscribed_id
