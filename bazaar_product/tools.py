@@ -292,7 +292,9 @@ class ProductsShaper(object):
       product['images'] = map(lambda i: i['image'], self.db.get(self.queryMap["product_images"], (id, )))
       product['min_price'] = min(map(lambda sub: sub['min_price'], product['subscriptions'])) if(len(product['subscriptions'])>0) else None
       product.pop('subscribed_product_ids', None)
-      
+      ids.remove(id)
+    for id in ids:
+      products.append({'product_id': id, 'base_product_id': 0, 'is_deleted': True})
     return products
 
 
