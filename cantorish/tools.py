@@ -225,6 +225,13 @@ class CantorishShaper(object):
     product['attributes'] = []
     attributes = []
     for att in ['color', 'size', 'brand', 'weight', 'model_name', 'model_number', 'key_features', 'manufacturer', 'video_url']:
+      attval = product[att]
+      try:
+        attval = map(lambda x: str(x), json.loads(product[att]))
+        product[att] = attval
+      except:
+        attval = product[att]
+
       attributes.append({ 'name': att, 'value': product[att]})
       product.pop(att, None)
     try:
@@ -248,8 +255,23 @@ class CantorishShaper(object):
           product['variants'].append(self.reshapeBase(variant, is_top=False))
         common = set.intersection(*map(lambda variant: set(map(lambda a: json.dumps(a, cls=Encoder, indent=2), variant['attributes'])), variants))
         product['attributes'] = list(map(lambda a: json.loads(a), common))
+        for attrib in product['attributes']:
+          attval = attrib['value']
+          try:
+            attval = map(lambda x: str(x), json.loads(attrib['value']))
+            attrib['value'] = attval
+          except:
+            attrib['value'] = attval
+
         for variant in variants:
           variant['attributes'] = list(map(lambda a: json.loads(a), set(map(lambda a: json.dumps(a, cls=Encoder, indent=2), variant['attributes'])) - common))
+          for attrib in variant['attributes']:
+            attval = attrib['value']
+            try:
+              attval = map(lambda x: str(x), json.loads(attrib['value']))
+              attrib['value'] = attval
+            except:
+              attrib['value'] = attval
        
       else:
         product['variants'][0]['attributes'] = []
