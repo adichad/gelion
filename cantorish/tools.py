@@ -256,7 +256,7 @@ class CantorishShaper(object):
         common = set.intersection(*map(lambda variant: set(map(lambda a: json.dumps(a, cls=Encoder, indent=2), variant['attributes'])), variants))
         product['attributes'] = list(map(lambda a: json.loads(a), common))
         for attrib in product['attributes']:
-          attval = attrib['value']
+          attval = attrib['value'][:int(min(len(attrib['value'])+1,32765))] if isinstance(attrib['value'], basestring) else attrib['value']
           try:
             attval = map(lambda x: str(x), json.loads(attrib['value']))
             attrib['value'] = attval
@@ -266,7 +266,7 @@ class CantorishShaper(object):
         for variant in variants:
           variant['attributes'] = list(map(lambda a: json.loads(a), set(map(lambda a: json.dumps(a, cls=Encoder, indent=2), variant['attributes'])) - common))
           for attrib in variant['attributes']:
-            attval = attrib['value']
+            attval = attrib['value'][:int(min(len(attrib['value'])+1,32765))] if isinstance(attrib['value'], basestring) else attrib['value']
             try:
               attval = map(lambda x: str(x), json.loads(attrib['value']))
               attrib['value'] = attval
